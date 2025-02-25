@@ -9,6 +9,7 @@ class CEIA(Base_Agent):
         
         # define robot type
         robot_type = (0,1,1,1,2,3,3,3,4,4,4)[unum-1]
+        self.pos10_alocado = False 
 
         # Initialize base agent
         # Args: Server IP, Agent Port, Monitor Port, Uniform No., Robot Type, Team Name, Enable Log, Enable Draw, play mode correction, Wait for Server, Hear Callback
@@ -117,6 +118,41 @@ class CEIA(Base_Agent):
             return self.behavior.execute("Basic_Kick", self.kick_direction, abort) # Basic_Kick has no kick distance control
         else: # fat proxy behavior
             return self.fat_proxy_kick()
+        
+
+    def kick_strong(self, kick_direction=None, kick_distance=None, abort=False, enable_pass_command=False):
+        '''
+        Walk to ball and kick
+
+        Parameters
+        ----------
+        kick_direction : float
+            kick direction, in degrees, relative to the field
+        kick_distance : float
+            kick distance in meters
+        abort : bool
+            True to abort.
+            The method returns True upon successful abortion, which is immediate while the robot is aligning itself. 
+            However, if the abortion is requested during the kick, it is delayed until the kick is completed.
+        avoid_pass_command : bool
+            When False, the pass command will be used when at least one opponent is near the ball
+            
+        Returns
+        -------
+        finished : bool
+            Returns True if the behavior finished or was successfully aborted.
+        '''
+
+        if self.min_opponent_ball_dist < 1.45 and enable_pass_command:
+            self.scom.commit_pass_command()
+
+        self.kick_direction = self.kick_direction if kick_direction is None else kick_direction
+        self.kick_distance = self.kick_distance if kick_distance is None else kick_distance
+
+        if self.fat_proxy_cmd is None: # normal behavior
+            return self.behavior.execute("Strong_Kick", self.kick_direction, abort) # Basic_Kick has no kick distance control
+        else: # fat proxy behavior
+            return self.fat_proxy_kick()
 
 
 
@@ -197,15 +233,45 @@ class CEIA(Base_Agent):
             if r.unum == 1 and PM_GROUP == w.MG_THEIR_KICK: # goalkeeper during their kick
                 self.move(self.init_pos, orientation=ball_dir) # walk in place 
             if PM == w.M_OUR_CORNER_KICK:
-                self.kick( -np.sign(ball_2d[1])*95, 5.5) # kick the ball into the space in front of the opponent's goal
-                # no need to change the state when PM is not Play On
+                self.kick( -np.sign(ball_2d[1])*95, 10) # kick the ball into the space in front of the opponent's goal
+                # no need to change the state when PM is not Play On 
+            elif r.unum == 6:
+        # Camisa 6: corre atrás da bola, mas só se ele for o mais próximo
+             possession_threshold = 1.0  # limiar em metros para considerar que um companheiro tem posse
+            if self.min_teammate_ball_dist < possession_threshold:
+        # Se um companheiro já está próximo da bola, não sobrepõe outros comandos.
+        # Aqui, o camisa 6 simplesmente mantém sua posição atual.
+                pass
+            else:
+                # Caso contrário, ele se move em direção à bola.
+                ball_pos = w.ball_abs_pos[:2]
+                current_pos = np.array(r.loc_head_position[:2])
+                desired_orientation = M.vector_angle(ball_pos - current_pos)
+                self.move(tuple(ball_pos), orientation=desired_orientation)
+
+            if r.unum == 10:
+                 # Definir a posição desejada para o camisa 10
+                target_position = (12, 0)
+                desired_orientation = 0  # Por exemplo, voltado para o gol
+
+                 # Verifica se ele já alcançou a posição
+                if not self.pos10_alocado:
+                    current_position = np.array(r.loc_head_position[:2])
+                    target = np.array(target_position)
+                    threshold = 0.5  # Limiar para considerar que ele chegou à posição
+
+                    if np.linalg.norm(current_position - target) > threshold:
+                        self.move(target_position, orientation=desired_orientation)
+                else:
+                    # Ao chegar na posição, marca que ele já está alocado e não sobrepõe outros comandos
+                    self.pos10_alocado = True
             elif self.min_opponent_ball_dist + 0.5 < self.min_teammate_ball_dist: # defend if opponent is considerably closer to the ball
                 if self.state == 2: # commit to kick while aborting
                     self.state = 0 if self.kick(abort=True) else 2
                 else: # move towards ball, but position myself between ball and our goal
                     self.move(slow_ball_pos + M.normalize_vec((-16,0) - slow_ball_pos) * 0.2, is_aggressive=True)
             else:
-                self.state = 0 if self.kick(goal_dir,9,False,enable_pass_command) else 2
+                self.state = 0 if self.kick(goal_dir,20,False,enable_pass_command) else 2
 
             path_draw_options(enable_obstacles=False, enable_path=False) # disable path drawings
 

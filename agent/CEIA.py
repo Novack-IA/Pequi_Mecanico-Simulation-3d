@@ -173,6 +173,7 @@ class CEIA(Base_Agent):
         path_draw_options = self.path_manager.draw_options
         PM = w.play_mode
         PM_GROUP = w.play_mode_group
+        possession_threshold_1 = 0.1
 
         #--------------------------------------- 1. Preprocessing
 
@@ -211,7 +212,7 @@ class CEIA(Base_Agent):
             self.state = 0 if behavior.execute("Get_Up") else 1 # return to normal state if get up behavior has finished
         elif PM == w.M_OUR_KICKOFF:
             if r.unum == 9:
-                self.kick(120,3) # no need to change the state when PM is not Play On
+                self.kick(0, 3) # no need to change the state when PM is not Play On
             else:
                 self.move(self.init_pos, orientation=ball_dir) # walk in place
         elif PM == w.M_THEIR_KICKOFF:
@@ -235,13 +236,8 @@ class CEIA(Base_Agent):
             if PM == w.M_OUR_CORNER_KICK:
                 self.kick( -np.sign(ball_2d[1])*95, 10) # kick the ball into the space in front of the opponent's goal
                 # no need to change the state when PM is not Play On 
-            elif r.unum == 6:
-        # Camisa 6: corre atrás da bola, mas só se ele for o mais próximo
-             possession_threshold = 1.0  # limiar em metros para considerar que um companheiro tem posse
-            if self.min_teammate_ball_dist < possession_threshold:
-        # Se um companheiro já está próximo da bola, não sobrepõe outros comandos.
-        # Aqui, o camisa 6 simplesmente mantém sua posição atual.
-                pass
+            if r.unum == 6:
+                self.kick(0, 3)
             else:
                 # Caso contrário, ele se move em direção à bola.
                 ball_pos = w.ball_abs_pos[:2]

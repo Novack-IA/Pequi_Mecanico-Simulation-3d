@@ -1,15 +1,75 @@
 from agent.Base_Agent import Base_Agent
 from math_ops.Math_Ops import Math_Ops as M
+from behaviors.custom.Dribble.Dribble import Dribble
 import math
 import numpy as np
+
+team = [
+    {
+        'number': '1',
+        'initial_position': [-14, 0],
+        'robot_type': 0
+    },
+    {
+        'number': '2',
+        'initial_position': [-11, -3],
+        'robot_type': 1
+    },
+    {
+        'number': '3',
+        'initial_position': [-11, 3],
+        'robot_type': 1
+    },
+    {
+        'number': '4',
+        'initial_position': [-9, 0],
+        'robot_type': 1
+    },
+    {
+        'number': '5',
+        'initial_position': [-6, -4],
+        'robot_type': 2
+    },
+    {
+        'number': '6',
+        'initial_position': [-5, 0],
+        'robot_type': 2
+    },
+    {
+        'number': '7',
+        'initial_position': [-4, -2],
+        'robot_type': 2
+    },
+    {
+        'number': '8',
+        'initial_position': [-6, 4],
+        'robot_type': 4
+    },
+    {
+        'number': '9',
+        'initial_position': [-1, -2.5],
+        'robot_type': 3
+    },
+    {
+        'number': '10',
+        'initial_position': [-1, 2.5],
+        'robot_type': 3
+    },
+    {
+        'number': '11',
+        'initial_position': [-4, 2],
+        'robot_type': 4
+    },
+]
 
 class CEIA(Base_Agent):
     def __init__(self, host:str, agent_port:int, monitor_port:int, unum:int,
                  team_name:str, enable_log, enable_draw, wait_for_server=True, is_fat_proxy=False) -> None:
         
         # define robot type
-        robot_type = (0,1,1,1,2,3,3,3,4,4,4)[unum-1]
-        self.pos10_alocado = False
+        robot = team[unum-1]
+        robot_type = robot['robot_type']
+        self.init_pos = robot['initial_position'] # initial formation
 
         # Initialize base agent
         # Args: Server IP, Agent Port, Monitor Port, Uniform No., Robot Type, Team Name, Enable Log, Enable Draw, play mode correction, Wait for Server, Hear Callback
@@ -21,9 +81,10 @@ class CEIA(Base_Agent):
         self.kick_distance = 0
         self.fat_proxy_cmd = "" if is_fat_proxy else None
         self.fat_proxy_walk = np.zeros(3) # filtered walk parameters for fat proxy
-
-        self.init_pos = ([-14,0],[-9,-5],[-9,0],[-9,5],[-5,-5],[-5,0],[-5,5],[-1,-6],[-1,-2.5],[-1,2.5],[-1,6])[unum-1] # initial formation
+        
+        self.pos6 = []
         self.pos9 = []
+        self.pos10 = []
 
     def beam(self, avoid_center_circle=False):
         r = self.world.robot
@@ -170,7 +231,6 @@ class CEIA(Base_Agent):
         PM = w.play_mode
         PM_GROUP = w.play_mode_group
         possession_threshold_1 = 0.1
-
         #--------------------------------------- 1. Preprocessing
 
         slow_ball_pos = w.get_predicted_ball_pos(0.5) # predicted future 2D ball position when ball speed <= 0.5 m/s
@@ -221,10 +281,6 @@ class CEIA(Base_Agent):
                     new_x = min(new_x + 3.5, 13) # advance if team has possession
                 self.move((new_x,self.init_pos[1]), orientation=ball_dir, priority_unums=[active_player_unum])
 
-                if r.unum == 9:
-                    print("POSIÇAO CAMISA 9: ", r.loc_head_position)
-                    self.pos9 = r.loc_head_position
-
         else: # I am the active player            
             path_draw_options(enable_obstacles=True, enable_path=True, use_team_drawing_channel=True) # enable path drawings for active player (ignored if self.enable_draw is False)
             enable_pass_command = (PM == w.M_PLAY_ON and ball_2d[0]<6)
@@ -234,19 +290,90 @@ class CEIA(Base_Agent):
             if PM == w.M_OUR_CORNER_KICK:
                 self.kick( -np.sign(ball_2d[1])*95, 10) # kick the ball into the space in front of the opponent's goal
                 # no need to change the state when PM is not Play On
-            if r.unum != 9:
-                print('P9: ', self.pos9)
-                print(self.pos9) 
-                posJ =  r.loc_head_position
+            if r.unum not in [6, 9, 10]:
+                if hasattr(self.world, 'pos6'):
+                    self.pos6 = self.world.pos6.tolist()
+                    print('POS 6: ', self.pos6)
 
-                distABx = self.pos9[0] - posJ[0]
-                distABy = self.pos9[1] - posJ[1]
+                if hasattr(self.world, 'pos9'):
+                    self.pos9 = self.world.pos9.tolist()
+                    print('POS 9: ', self.pos9)
 
-                alfa = - math.sqrt(distABx**2 + distABy**2)
-                print('POSIÇÃO ATUAL: ', r.loc_head_position)
+                if hasattr(self.world, 'pos10'):
+                    self.pos10 = self.world.pos10.tolist()
+                    print('POS 10: ', self.pos10)
 
-                # Chama a função de chute com o valor do cosseno
-                self.kick(alfa, 1)
+
+                dist6 = math.dist(self.pos6[:2], r.loc_head_position[:2])
+                dist9 = math.dist(self.pos9[:2], r.loc_head_position[:2])
+                dist10 = math.dist(self.pos10[:2], r.loc_head_position[:2])
+                distancias = (dist6, dist9, dist10)
+                p_proximo = distancias.index(min(distancias))
+
+                if p_proximo == 0:
+                    angle = M.target_abs_angle(r.loc_head_position[:2], self.pos6[:2])
+                    self.kick(angle, 1000)           
+                elif p_proximo == 1:
+                    angle = M.target_abs_angle(r.loc_head_position[:2], self.pos9[:2])
+                    self.kick(angle, 1000)           
+                elif p_proximo == 2:
+                    angle = M.target_abs_angle(r.loc_head_position[:2], self.pos10[:2])
+                    self.kick(angle, 1000)           
+
+            elif r.unum == 6:
+                if hasattr(self.world, 'pos9'):
+                    self.pos9 = self.world.pos9.tolist()
+                    print('POS 9: ', self.pos9)
+
+                if hasattr(self.world, 'pos10'):
+                    self.pos10 = self.world.pos10.tolist()
+                    print('POS 9: ', self.pos10)
+
+                dist9 = math.dist(self.pos9[:2], r.loc_head_position[:2])
+                dist10 = math.dist(self.pos10[:2], r.loc_head_position[:2])
+                distancias = (dist9, dist10)
+                p_proximo = distancias.index(min(distancias))
+
+                if p_proximo == 0:
+                    angle = M.target_abs_angle(r.loc_head_position[:2], self.pos9[:2])
+                    self.kick(angle, 1000)           
+                elif p_proximo == 1:
+                    angle = M.target_abs_angle(r.loc_head_position[:2], self.pos10[:2])
+                    self.kick(angle, 1000)
+            elif r.unum == 9:
+                if hasattr(self.world, 'pos9'):
+                    self.pos9 = self.world.pos9.tolist()
+                    print('POS 9: ', self.pos9)
+
+                if hasattr(self.world, 'pos10'):
+                    self.pos10 = self.world.pos10.tolist()
+                    print('POS 9: ', self.pos10)
+
+                goal_dist = M.distance_point_to_opp_goal(ball_2d[:2])
+                dist_9_10 = math.sqrt((self.pos9[0] - self.pos10[0])**2 + (self.pos9[1] - self.pos10[1])**2)
+
+                if goal_dist <= dist_9_10:
+                    self.kick(goal_dir, 1000)
+                else:
+                    angle = M.target_abs_angle(r.loc_head_position[:2], self.pos10[:2])
+                    self.kick(angle, 1000)                        
+            elif r.unum == 10:
+                if hasattr(self.world, 'pos9'):
+                    self.pos9 = self.world.pos9.tolist()
+                    print('POS 9: ', self.pos9)
+
+                if hasattr(self.world, 'pos10'):
+                    self.pos10 = self.world.pos10.tolist()
+                    print('POS 9: ', self.pos10)
+
+                goal_dist = M.distance_point_to_opp_goal(ball_2d[:2])
+                dist_10_9 = math.dist(self.pos9[:2], self.pos10[:2])
+
+                if goal_dist <= dist_10_9:
+                    self.kick(goal_dir, 1000)
+                else:
+                    angle = M.target_abs_angle(r.loc_head_position[:2], self.pos9[:2])
+                    self.kick(angle, 1000)                        
             elif self.min_opponent_ball_dist + 0.5 < self.min_teammate_ball_dist: # defend if opponent is considerably closer to the ball
                 if self.state == 2: # commit to kick while aborting
                     self.state = 0 if self.kick(abort=True) else 2

@@ -216,91 +216,105 @@ class Radio():
         self.commit_announcement(msg.encode()) # commit message
 
 
-    def receive(self, msg:bytearray):
+    def receive(self, msg: bytearray):
         w = self.world
         r = w.robot
         ago40ms = w.time_local_ms - 40
         ago110ms = w.time_local_ms - 110
-        msg_time = w.time_local_ms - 20 # message was sent in the last step
+        msg_time = w.time_local_ms - 20  # mensagem enviada na última etapa
 
-        #============================================ 1. get combination
-
-        # read first symbol, which cannot be ';' due to server bug
+        #============================================ 1. obter combinação
         combination = Radio.SYMB_TO_IDX[msg[0]]
-        total_combinations = Radio.SLEN-1
+        total_combinations = Radio.SLEN - 1
 
-        if len(msg)>1:
+        if len(msg) > 1:
             for m in msg[1:]:
                 combination += total_combinations * Radio.SYMB_TO_IDX[m]
                 total_combinations *= Radio.SLEN
 
-        #============================================ 2. get msg ID
-
+        #============================================ 2. obter id da mensagem
         message_no = combination % 3
         combination //= 3
         group, has_ball, _ = self.groups[message_no]
 
-        #============================================ 3. get data
-
+        #============================================ 3. obter dados
         if has_ball:
             ball_comb = combination % Radio.BP[6]
             combination //= Radio.BP[6]
 
         players_combs = []
-        ot : Other_Robot
         for ot in group:
             info = Radio.TP if ot.is_teammate else Radio.OP
-            players_combs.append( combination % (info[7]+2) )
-            combination //= info[7]+2
+            players_combs.append(combination % (info[7] + 2))
+            combination //= (info[7] + 2)
 
-        #============================================ 4. update world
+        #============================================ 4. atualizar mundo
 
-        if has_ball and w.ball_abs_pos_last_update < ago40ms: # update ball if it was not seen
+        if has_ball and w.ball_abs_pos_last_update < ago40ms:
             time_diff = (msg_time - w.ball_abs_pos_last_update) / 1000
             ball = self.get_ball_position(ball_comb)
             w.ball_abs_vel = (ball - w.ball_abs_pos) / time_diff
             w.ball_abs_speed = np.linalg.norm(w.ball_abs_vel)
-            w.ball_abs_pos_last_update = msg_time # (error: 0-40 ms)
+            w.ball_abs_pos_last_update = msg_time
             w.ball_abs_pos = ball
             w.is_ball_abs_pos_from_vision = False
-            
+
         for c, ot in zip(players_combs, group):
-            
-            # handle oneself case
             if ot.is_self:
-                # the ball's position has a fair amount of noise, whether seen by us or other players
-                # but our self-locatization mechanism is usually much better than how others perceive us
-                if r.loc_last_update < ago110ms: # so we wait until we miss 2 visual steps
+                if r.loc_last_update < ago110ms:
                     data = self.get_player_position(c, Radio.TP)
-                    if type(data)==tuple:
-                        x,y,is_down = data
-                        r.loc_head_position[:2] = x,y # z is kept unchanged
+                    if isinstance(data, tuple):
+                        x, y, is_down = data
+                        r.loc_head_position[:2] = (x, y)
                         r.loc_head_position_last_update = msg_time
                         r.radio_fallen_state = is_down
                         r.radio_last_update = msg_time
                 continue
 
-            # do not update if other robot was recently seen
             if ot.state_last_update >= ago40ms:
                 continue
 
             info = Radio.TP if ot.is_teammate else Radio.OP
-            data = self.get_player_position(c, info)  
-            if type(data)==tuple:
-                x,y,is_down = data
-                p = np.array([x,y])
-                
-                if ot.state_abs_pos is not None:  # update the x & y components of the velocity
-                    time_diff = (msg_time - ot.state_last_update) / 1000
-                    velocity = np.append( (p - ot.state_abs_pos[:2]) / time_diff, 0) # v.z = 0
+            data = self.get_player_position(c, info)
+            if isinstance(data, tuple):
+                x, y, is_down = data
+                p = np.array([x, y])
+                time_diff = (msg_time - ot.state_last_update) / 1000
+                if ot.state_abs_pos is not None:
+                    velocity = np.append((p - ot.state_abs_pos[:2]) / time_diff, 0)
                     vel_diff = velocity - ot.state_filtered_velocity
-                    if np.linalg.norm(vel_diff) < 4: # otherwise assume it was beamed
-                        ot.state_filtered_velocity /= (ot.vel_decay,ot.vel_decay,1) # neutralize decay (except in the z-axis)
+                    if np.linalg.norm(vel_diff) < 4:
+                        ot.state_filtered_velocity /= (ot.vel_decay, ot.vel_decay, 1)
                         ot.state_filtered_velocity += ot.vel_filter * vel_diff
-                    
-                ot.state_fallen = is_down             
-                ot.state_last_update = msg_time    
-                ot.state_body_parts_abs_pos = {"head":p}
+                ot.state_fallen = is_down
+                ot.state_last_update = msg_time
+                ot.state_body_parts_abs_pos = {"head": p}
                 ot.state_abs_pos = p
                 ot.state_horizontal_dist = np.linalg.norm(p - r.loc_head_position[:2])
-                ot.state_ground_area = (p, 0.3 if is_down else 0.2)  # not very precise, but we cannot see the robot
+                ot.state_ground_area = (p, 0.3 if is_down else 0.2)
+
+        #============================================ 5. Atualizar posição global de jogadores específicos
+
+        # Atualiza a posição do jogador de camisa 10.
+        # Grupo 0 contém jogadores de camisa 10 e 11; usamos o primeiro elemento (índice 0)
+        if message_no == 0 and len(players_combs) >= 1:
+            data = self.get_player_position(players_combs[0], Radio.TP)
+            if isinstance(data, tuple):
+                x, y, _ = data
+                w.pos10 = np.array([x, y, 0])
+
+        # Atualiza a posição do jogador de camisa 6.
+        # Grupo 1 contém jogadores de camisa 1 a 7; a camisa 6 está no índice 5 (se ordenados por número)
+        if message_no == 1 and len(players_combs) >= 6:
+            data = self.get_player_position(players_combs[5], Radio.TP)
+            if isinstance(data, tuple):
+                x, y, _ = data
+                w.pos6 = np.array([x, y, 0])
+
+        # Atualiza a posição do jogador de camisa 9.
+        # Grupo 2 contém jogadores de camisa 8 e 9; usamos o segundo elemento (índice 1)
+        if message_no == 2 and len(players_combs) >= 2:
+            data = self.get_player_position(players_combs[1], Radio.TP)
+            if isinstance(data, tuple):
+                x, y, _ = data
+                w.pos9 = np.array([x, y, 0])

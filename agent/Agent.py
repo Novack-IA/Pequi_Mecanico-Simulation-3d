@@ -176,7 +176,7 @@ class Agent(Base_Agent):
             self.state = 0 if behavior.execute("Get_Up") else 1 # return to normal state if get up behavior has finished
         elif PM == w.M_OUR_KICKOFF:
             if r.unum == 9:
-                self.kick(120,3) # no need to change the state when PM is not Play On
+                self.kick(120,9) # no need to change the state when PM is not Play On
             else:
                 self.move(self.init_pos, orientation=ball_dir) # walk in place
         elif PM == w.M_THEIR_KICKOFF:

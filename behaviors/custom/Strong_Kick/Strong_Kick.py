@@ -54,7 +54,7 @@ class Strong_Kick():
                 t - w.ball_abs_pos_last_update < 100 and                          # ball absolute location is recent
                 dist_to_final_target < 0.03 and                                   # if absolute ball position is updated
                 not gait.state_is_left_active and gait.state_current_ts == 2 and  # walk gait phase is adequate
-                t - self.reset_time > 600): # to avoid kicking immediately without preparation & stability
+                t - self.reset_time > 700): # to avoid kicking immediately without preparation & stability
                 #Novack: aumentei o tempo de latência para o chute 600 - 1200
                 self.phase += 1
 

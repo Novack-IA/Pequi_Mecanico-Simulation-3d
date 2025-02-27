@@ -10,7 +10,7 @@
         <move id="10" angle="60"/>  <!-- Left  foot pitch -->
         <move id="11" angle="10"/>  <!-- Right foot pitch -->
     </slot>
-    <slot delta="0.7">    <!-- Kick -->
+    <slot delta="0.2">    <!-- Kick -->
         <move id="3" angle="-45"/> <!-- Right leg yaw/pitch -->
         <move id="6" angle="-25"/> <!-- Left  leg pitch -->
         <move id="7" angle="80"/>  <!-- Right leg pitch -->

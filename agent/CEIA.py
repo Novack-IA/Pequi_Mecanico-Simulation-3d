@@ -9,7 +9,7 @@ class CEIA(Base_Agent):
         
         # define robot type
         robot_type = (0,1,1,1,2,3,3,3,4,4,4)[unum-1]
-        self.pos10_alocado = False 
+        self.pos10_alocado = False
 
         # Initialize base agent
         # Args: Server IP, Agent Port, Monitor Port, Uniform No., Robot Type, Team Name, Enable Log, Enable Draw, play mode correction, Wait for Server, Hear Callback
@@ -23,7 +23,7 @@ class CEIA(Base_Agent):
         self.fat_proxy_walk = np.zeros(3) # filtered walk parameters for fat proxy
 
         self.init_pos = ([-14,0],[-9,-5],[-9,0],[-9,5],[-5,-5],[-5,0],[-5,5],[-1,-6],[-1,-2.5],[-1,2.5],[-1,6])[unum-1] # initial formation
-
+        self.pos9 = []
 
     def beam(self, avoid_center_circle=False):
         r = self.world.robot
@@ -80,8 +80,6 @@ class CEIA(Base_Agent):
             distance_to_final_target = np.linalg.norm(target_2d - r.loc_head_position[:2])
 
         self.behavior.execute("Walk", target_2d, True, orientation, is_orientation_absolute, distance_to_final_target) # Args: target, is_target_abs, ori, is_ori_abs, distance
-
-
 
 
 
@@ -155,8 +153,6 @@ class CEIA(Base_Agent):
             return self.fat_proxy_kick()
 
 
-
-
     def think_and_send(self):
         w = self.world
         r = self.world.robot  
@@ -200,8 +196,6 @@ class CEIA(Base_Agent):
 
         #--------------------------------------- 2. Decide action
 
-
-
         if PM == w.M_GAME_OVER:
             pass
         elif PM_GROUP == w.MG_ACTIVE_BEAM:
@@ -212,12 +206,12 @@ class CEIA(Base_Agent):
             self.state = 0 if behavior.execute("Get_Up") else 1 # return to normal state if get up behavior has finished
         elif PM == w.M_OUR_KICKOFF:
             if r.unum == 9:
-                self.kick(0, 3) # no need to change the state when PM is not Play On
+                self.kick(120, 3) # no need to change the state when PM is not Play On
             else:
                 self.move(self.init_pos, orientation=ball_dir) # walk in place
         elif PM == w.M_THEIR_KICKOFF:
             self.move(self.init_pos, orientation=ball_dir) # walk in place
-        elif active_player_unum != r.unum: # I am not the active player
+        elif active_player_unum != r.unum: # I am not the active player 
             if r.unum == 1: # I am the goalkeeper
                 self.move(self.init_pos, orientation=ball_dir) # walk in place 
             else:
@@ -227,7 +221,11 @@ class CEIA(Base_Agent):
                     new_x = min(new_x + 3.5, 13) # advance if team has possession
                 self.move((new_x,self.init_pos[1]), orientation=ball_dir, priority_unums=[active_player_unum])
 
-        else: # I am the active player
+                if r.unum == 9:
+                    print("POSIÇAO CAMISA 9: ", r.loc_head_position)
+                    self.pos9 = r.loc_head_position
+
+        else: # I am the active player            
             path_draw_options(enable_obstacles=True, enable_path=True, use_team_drawing_channel=True) # enable path drawings for active player (ignored if self.enable_draw is False)
             enable_pass_command = (PM == w.M_PLAY_ON and ball_2d[0]<6)
 
@@ -235,32 +233,20 @@ class CEIA(Base_Agent):
                 self.move(self.init_pos, orientation=ball_dir) # walk in place 
             if PM == w.M_OUR_CORNER_KICK:
                 self.kick( -np.sign(ball_2d[1])*95, 10) # kick the ball into the space in front of the opponent's goal
-                # no need to change the state when PM is not Play On 
-            if r.unum == 6:
-                self.kick(0, 3)
-            else:
-                # Caso contrário, ele se move em direção à bola.
-                ball_pos = w.ball_abs_pos[:2]
-                current_pos = np.array(r.loc_head_position[:2])
-                desired_orientation = M.vector_angle(ball_pos - current_pos)
-                self.move(tuple(ball_pos), orientation=desired_orientation)
+                # no need to change the state when PM is not Play On
+            if r.unum != 9:
+                print('P9: ', self.pos9)
+                print(self.pos9) 
+                posJ =  r.loc_head_position
 
-            if r.unum == 10:
-                 # Definir a posição desejada para o camisa 10
-                target_position = (12, 0)
-                desired_orientation = 0  # Por exemplo, voltado para o gol
+                distABx = self.pos9[0] - posJ[0]
+                distABy = self.pos9[1] - posJ[1]
 
-                 # Verifica se ele já alcançou a posição
-                if not self.pos10_alocado:
-                    current_position = np.array(r.loc_head_position[:2])
-                    target = np.array(target_position)
-                    threshold = 0.5  # Limiar para considerar que ele chegou à posição
+                alfa = - math.sqrt(distABx**2 + distABy**2)
+                print('POSIÇÃO ATUAL: ', r.loc_head_position)
 
-                    if np.linalg.norm(current_position - target) > threshold:
-                        self.move(target_position, orientation=desired_orientation)
-                else:
-                    # Ao chegar na posição, marca que ele já está alocado e não sobrepõe outros comandos
-                    self.pos10_alocado = True
+                # Chama a função de chute com o valor do cosseno
+                self.kick(alfa, 1)
             elif self.min_opponent_ball_dist + 0.5 < self.min_teammate_ball_dist: # defend if opponent is considerably closer to the ball
                 if self.state == 2: # commit to kick while aborting
                     self.state = 0 if self.kick(abort=True) else 2

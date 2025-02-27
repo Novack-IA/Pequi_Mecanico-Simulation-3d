@@ -3,7 +3,7 @@ script = Script(cpp_builder_unum=1) # Initialize: load config file, parse argume
 a = script.args
 
 if a.P: # penalty shootout
-    from agent.Agent_Penalty import Agent
+    from agent.CEIA_Penalty import CEIA
 else: # normal agent
     from agent.CEIA import CEIA
 

@@ -36,7 +36,7 @@ host=\${1:-localhost}
 port=\${2:-3100}
 
 for i in {1..11}; do
-  ./fcp -i \$host -p \$port -u \$i -t FCPortugal &
+  ./cia -i \$host -p \$port -u \$i -t CEIA &
 done
 EOF
 

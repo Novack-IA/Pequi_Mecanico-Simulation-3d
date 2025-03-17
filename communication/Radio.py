@@ -318,3 +318,19 @@ class Radio():
             if isinstance(data, tuple):
                 x, y, _ = data
                 w.pos9 = np.array([x, y, 0])
+
+        # Atualiza a posição do jogador de camisa 2.
+        # Grupo 1 contém jogadores de camisa 1 a 7; a camisa 2 está no índice 1.
+        if message_no == 1 and len(players_combs) >= 2:
+            data = self.get_player_position(players_combs[1], Radio.TP)
+            if isinstance(data, tuple):
+                x, y, _ = data
+                w.pos2 = np.array([x, y, 0])
+
+        # Atualiza a posição do jogador de camisa 3.
+        # Grupo 1 contém jogadores de camisa 1 a 7; a camisa 3 está no índice 2.
+        if message_no == 1 and len(players_combs) >= 3:
+            data = self.get_player_position(players_combs[2], Radio.TP)
+            if isinstance(data, tuple):
+                x, y, _ = data
+                w.pos3 = np.array([x, y, 0])

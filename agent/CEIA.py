@@ -82,9 +82,14 @@ class CEIA(Base_Agent):
         self.fat_proxy_cmd = "" if is_fat_proxy else None
         self.fat_proxy_walk = np.zeros(3) # filtered walk parameters for fat proxy
         
+        self.pos3 = []
         self.pos6 = []
         self.pos9 = []
         self.pos10 = []
+
+        # Instancia o comportamento de drible
+        self.dribble = Dribble(self)
+        self.dribble.phase = 0  # inicializa a fase do drible
 
     def beam(self, avoid_center_circle=False):
         r = self.world.robot
@@ -253,7 +258,6 @@ class CEIA(Base_Agent):
 
         active_player_unum = teammates_ball_sq_dist.index(min_teammate_ball_sq_dist) + 1
 
-
         #--------------------------------------- 2. Decide action
 
         if PM == w.M_GAME_OVER:
@@ -266,7 +270,7 @@ class CEIA(Base_Agent):
             self.state = 0 if behavior.execute("Get_Up") else 1 # return to normal state if get up behavior has finished
         elif PM == w.M_OUR_KICKOFF:
             if r.unum == 9:
-                self.kick(120, 3) # no need to change the state when PM is not Play On
+                self.kick(110, 1) # no need to change the state when PM is not Play On
             else:
                 self.move(self.init_pos, orientation=ball_dir) # walk in place
         elif PM == w.M_THEIR_KICKOFF:
@@ -287,27 +291,31 @@ class CEIA(Base_Agent):
 
             if r.unum == 1 and PM_GROUP == w.MG_THEIR_KICK: # goalkeeper during their kick
                 self.move(self.init_pos, orientation=ball_dir) # walk in place 
+            elif r.unum == 1 and PM_GROUP == w.M_OUR_GOAL_KICK:
+                if hasattr(self.world, 'pos3'):
+                    self.pos3 = self.world.pos3.tolist()
+                
+                angle = M.target_abs_angle(r.loc_head_position[:2], self.pos3[:2])
+                self.kick(angle, 100)
             if PM == w.M_OUR_CORNER_KICK:
                 self.kick( -np.sign(ball_2d[1])*95, 10) # kick the ball into the space in front of the opponent's goal
                 # no need to change the state when PM is not Play On
             if r.unum not in [6, 9, 10]:
                 if hasattr(self.world, 'pos6'):
                     self.pos6 = self.world.pos6.tolist()
-                    print('POS 6: ', self.pos6)
 
                 if hasattr(self.world, 'pos9'):
                     self.pos9 = self.world.pos9.tolist()
-                    print('POS 9: ', self.pos9)
 
                 if hasattr(self.world, 'pos10'):
                     self.pos10 = self.world.pos10.tolist()
-                    print('POS 10: ', self.pos10)
 
 
                 dist6 = math.dist(self.pos6[:2], r.loc_head_position[:2])
                 dist9 = math.dist(self.pos9[:2], r.loc_head_position[:2])
                 dist10 = math.dist(self.pos10[:2], r.loc_head_position[:2])
                 distancias = (dist6, dist9, dist10)
+                print('Distancias (6): ', distancias)
                 p_proximo = distancias.index(min(distancias))
 
                 if p_proximo == 0:
@@ -323,15 +331,14 @@ class CEIA(Base_Agent):
             elif r.unum == 6:
                 if hasattr(self.world, 'pos9'):
                     self.pos9 = self.world.pos9.tolist()
-                    print('POS 9: ', self.pos9)
 
                 if hasattr(self.world, 'pos10'):
                     self.pos10 = self.world.pos10.tolist()
-                    print('POS 9: ', self.pos10)
 
                 dist9 = math.dist(self.pos9[:2], r.loc_head_position[:2])
                 dist10 = math.dist(self.pos10[:2], r.loc_head_position[:2])
                 distancias = (dist9, dist10)
+                print('DISTANCIAS (todos): ', distancias)
                 p_proximo = distancias.index(min(distancias))
 
                 if p_proximo == 0:
@@ -343,11 +350,9 @@ class CEIA(Base_Agent):
             elif r.unum == 9:
                 if hasattr(self.world, 'pos9'):
                     self.pos9 = self.world.pos9.tolist()
-                    print('POS 9: ', self.pos9)
 
                 if hasattr(self.world, 'pos10'):
                     self.pos10 = self.world.pos10.tolist()
-                    print('POS 9: ', self.pos10)
 
                 goal_dist = M.distance_point_to_opp_goal(ball_2d[:2])
                 dist_9_10 = math.sqrt((self.pos9[0] - self.pos10[0])**2 + (self.pos9[1] - self.pos10[1])**2)
@@ -358,22 +363,20 @@ class CEIA(Base_Agent):
                     angle = M.target_abs_angle(r.loc_head_position[:2], self.pos10[:2])
                     self.kick(angle, 1000)                        
             elif r.unum == 10:
-                if hasattr(self.world, 'pos9'):
-                    self.pos9 = self.world.pos9.tolist()
-                    print('POS 9: ', self.pos9)
-
-                if hasattr(self.world, 'pos10'):
-                    self.pos10 = self.world.pos10.tolist()
-                    print('POS 9: ', self.pos10)
-
-                goal_dist = M.distance_point_to_opp_goal(ball_2d[:2])
-                dist_10_9 = math.dist(self.pos9[:2], self.pos10[:2])
-
-                if goal_dist <= dist_10_9:
-                    self.kick(goal_dir, 1000)
+                if PM == w.M_PLAY_ON and self.dribble.is_ready():
+                    # Aqui, podemos definir os parâmetros de drible.
+                    # Por exemplo, se nenhum ângulo foi especificado, o dribble irá buscar a orientação para o gol adversário.
+                    reset = False  # ou alguma condição que indique que o dribble deve ser reiniciado
+                    orientation = None  # drible para o gol
+                    is_orientation_absolute = True
+                    speed = 1  # velocidade máxima
+                    stop = False
+                    dribble_finished = self.dribble.execute(reset, orientation, is_orientation_absolute, speed, stop)
+                    if dribble_finished:
+                        # Se o dribble terminou, podemos reiniciar a fase ou tomar outra ação.
+                        self.dribble.phase = 0
                 else:
-                    angle = M.target_abs_angle(r.loc_head_position[:2], self.pos9[:2])
-                    self.kick(angle, 1000)                        
+                    self.kick(goal_dir, 5)
             elif self.min_opponent_ball_dist + 0.5 < self.min_teammate_ball_dist: # defend if opponent is considerably closer to the ball
                 if self.state == 2: # commit to kick while aborting
                     self.state = 0 if self.kick(abort=True) else 2

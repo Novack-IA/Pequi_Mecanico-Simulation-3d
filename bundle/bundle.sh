@@ -24,7 +24,7 @@ pyinstaller \
 --add-data './behaviors/custom/Dribble/*.pkl:behaviors/custom/Dribble' \
 --add-data './behaviors/custom/Walk/*.pkl:behaviors/custom/Walk' \
 --add-data './behaviors/custom/Fall/*.pkl:behaviors/custom/Fall' \
-${onefile} --distpath ./bundle/dist/ --workpath ./bundle/build/ --noconfirm --name fcp Run_Player.py
+${onefile} --distpath ./bundle/dist/ --workpath ./bundle/build/ --noconfirm --name peq Run_teamCEIA.py
 
 # start.sh
 
@@ -36,7 +36,7 @@ host=\${1:-localhost}
 port=\${2:-3100}
 
 for i in {1..11}; do
-  ./cia -i \$host -p \$port -u \$i -t CEIA &
+  ./peq -i \$host -p \$port -u \$i -t Pequi_Mecânico &
 done
 EOF
 
@@ -49,8 +49,8 @@ export OMP_NUM_THREADS=1
 host=\${1:-localhost}
 port=\${2:-3100}
 
-./fcp -i \$host -p \$port -u 1  -t FCPortugal -P 1 &
-./fcp -i \$host -p \$port -u 11 -t FCPortugal -P 1 &
+./peq -i \$host -p \$port -u 1  -t Pequi_Mecânico -P 1 &
+./peq -i \$host -p \$port -u 11 -t Pequi_Mecânico -P 1 &
 EOF
 
 # start_fat_proxy.sh
@@ -63,7 +63,7 @@ host=\${1:-localhost}
 port=\${2:-3100}
 
 for i in {1..11}; do
-  ./fcp -i \$host -p \$port -u \$i -t FCPortugal -F 1 &
+  ./peq -i \$host -p \$port -u \$i -t Pequi_Mecânico -F 1 &
 done
 EOF
 

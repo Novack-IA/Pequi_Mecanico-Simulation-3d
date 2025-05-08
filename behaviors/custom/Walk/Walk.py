@@ -1,4 +1,4 @@
-from agent.Base_Agent import Base_Agent
+from agent.Base_AgentCEIA import Base_Agent
 from behaviors.custom.Walk.Env import Env
 from math_ops.Math_Ops import Math_Ops as M
 from math_ops.Neural_Network import run_mlp

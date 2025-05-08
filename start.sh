@@ -1,4 +1,5 @@
 #!/bin/bash
+echo "Iniciando o script start.sh..."
 export OMP_NUM_THREADS=1
 
 host=${1:-localhost}

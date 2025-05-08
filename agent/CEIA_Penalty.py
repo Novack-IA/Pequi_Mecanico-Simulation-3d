@@ -1,9 +1,9 @@
-from agent.Base_Agent import Base_Agent
+from agent.Base_AgentCEIA import Base_Agent
 from math_ops.Math_Ops import Math_Ops as M
 import math
 import numpy as np
 
-class CEIA(Base_Agent):
+class Agent(Base_Agent):
     def __init__(self, host:str, agent_port:int, monitor_port:int, unum:int,
                  team_name:str, enable_log, enable_draw, wait_for_server=True, is_fat_proxy=False) -> None:
         

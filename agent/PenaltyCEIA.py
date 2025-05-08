@@ -1,4 +1,4 @@
-from agent.Base_Agent import Base_Agent
+from agent.Base_AgentCEIA import Base_Agent
 from math_ops.Math_Ops import Math_Ops as M
 import numpy as np
 import random

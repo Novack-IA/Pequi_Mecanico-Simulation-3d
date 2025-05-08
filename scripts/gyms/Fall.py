@@ -1,4 +1,4 @@
-from agent.Base_Agent import Base_Agent as Agent
+from agent.Base_AgentCEIA import Base_Agent as Agent
 from world.commons.Draw import Draw
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv

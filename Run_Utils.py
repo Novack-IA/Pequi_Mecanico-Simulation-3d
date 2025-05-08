@@ -46,7 +46,7 @@ def main():
             Each util must implement an execute() method, which may or may not return
             '''
             from world.commons.Draw import Draw
-            from agent.Base_Agent import Base_Agent
+            from agent.Base_AgentCEIA import Base_Agent
             obj = getattr(mod,cls_name)(script)
             try:
                 obj.execute() # Util may return normally or through KeyboardInterrupt

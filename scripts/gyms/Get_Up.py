@@ -1,4 +1,4 @@
-from agent.Base_Agent import Base_Agent as Agent
+from agent.Base_AgentCEIA import Base_Agent as Agent
 from pathlib import Path
 from scripts.commons.Server import Server
 from scripts.commons.Train_Base import Train_Base

@@ -1,4 +1,4 @@
-from agent.Base_Agent import Base_Agent as Agent
+from agent.Base_AgentCEIA import Base_Agent as Agent
 from math_ops.Math_Ops import Math_Ops as M
 from scripts.commons.Script import Script
 import numpy as np

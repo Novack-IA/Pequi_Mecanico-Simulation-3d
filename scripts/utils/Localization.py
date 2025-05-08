@@ -1,4 +1,4 @@
-from agent.Agent import Agent as Agent
+from agent.AgentCEIA import Agent as Agent
 from cpp.localization import localization
 from math_ops.Math_Ops import Math_Ops as M
 from scripts.commons.Script import Script

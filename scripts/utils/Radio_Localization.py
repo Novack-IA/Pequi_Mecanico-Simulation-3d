@@ -1,4 +1,4 @@
-from agent.Agent import Agent
+from agent.AgentCEIA import Agent
 from itertools import count
 from scripts.commons.Script import Script
 from typing import List

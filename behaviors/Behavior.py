@@ -4,7 +4,7 @@ import numpy as np
 class Behavior():
 
     def __init__(self, base_agent) -> None:
-        from agent.Base_Agent import Base_Agent # for type hinting
+        from agent.Base_AgentCEIA import Base_Agent # for type hinting
         self.base_agent : Base_Agent = base_agent
         self.world = self.base_agent.world
         self.state_behavior_name = None

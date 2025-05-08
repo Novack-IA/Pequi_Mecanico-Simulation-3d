@@ -1,4 +1,4 @@
-from agent.Base_Agent import Base_Agent as Agent
+from agent.Base_AgentCEIA import Base_Agent as Agent
 from math_ops.Matrix_3x3 import Matrix_3x3
 from math_ops.Matrix_4x4 import Matrix_4x4
 from scripts.commons.Script import Script

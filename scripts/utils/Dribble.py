@@ -1,5 +1,5 @@
-from agent.Agent import Agent
-from agent.Base_Agent import Base_Agent
+from agent.AgentCEIA import Agent
+from agent.Base_AgentCEIA import Base_Agent
 from scripts.commons.Script import Script
 import numpy as np
 

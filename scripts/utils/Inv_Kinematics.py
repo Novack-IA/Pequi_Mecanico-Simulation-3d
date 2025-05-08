@@ -1,4 +1,4 @@
-from agent.Base_Agent import Base_Agent as Agent
+from agent.Base_AgentCEIA import Base_Agent as Agent
 from itertools import count
 from math_ops.Inverse_Kinematics import Inverse_Kinematics
 from scripts.commons.Script import Script

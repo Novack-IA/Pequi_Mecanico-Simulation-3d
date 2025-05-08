@@ -1,4 +1,4 @@
-from agent.Base_Agent import Base_Agent as Agent
+from agent.Base_AgentCEIA import Base_Agent as Agent
 from scripts.commons.Script import Script
 from scripts.commons.UI import UI
 

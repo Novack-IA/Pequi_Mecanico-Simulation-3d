@@ -3,9 +3,9 @@ script = Script(cpp_builder_unum=1) # Initialize: load config file, parse argume
 a = script.args
 
 if a.P: # penalty shootout
-    from agent.Agent_Penalty import Agent
+    from agent.PenaltyCEIA import Agent
 else: # normal agent
-    from agent.Agent import Agent
+    from agent.CEIA import Agent
 
 # Args: Server IP, Agent Port, Monitor Port, Uniform No., Team name, Enable Log, Enable Draw, Wait for Server, is magmaFatProxy
 if a.D: # debug mode

@@ -1,4 +1,4 @@
-from agent.Base_Agent import Base_Agent
+from agent.Base_AgentCEIA import Base_Agent
 from math_ops.Math_Ops import Math_Ops as M
 from behaviors.custom.Dribble.Dribble import Dribble
 import math
@@ -62,7 +62,7 @@ team = [
     },
 ]
 
-class CEIA(Base_Agent):
+class Agent(Base_Agent):
     def __init__(self, host:str, agent_port:int, monitor_port:int, unum:int,
                  team_name:str, enable_log, enable_draw, wait_for_server=True, is_fat_proxy=False) -> None:
         
@@ -78,6 +78,17 @@ class CEIA(Base_Agent):
         self.enable_draw = enable_draw
         self.state = 0  # 0-Normal, 1-Getting up, 2-Kicking
         self.kick_direction = 0
+        self.kick_distance = 0
+        self.fat_proxy_cmd = "" if is_fat_proxy else None
+        self.fat_proxy_walk = np.zeros(3) # filtered walk parameters for fat proxy
+        
+        self.pos3 = []
+        self.pos6 = []
+        self.pos9 = []
+        self.pos10 = []
+
+        # Instancia o comportamento de drible
+        self.dribble = Dribble(self)
         self.kick_distance = 0
         self.fat_proxy_cmd = "" if is_fat_proxy else None
         self.fat_proxy_walk = np.zeros(3) # filtered walk parameters for fat proxy

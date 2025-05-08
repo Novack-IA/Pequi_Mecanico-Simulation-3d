@@ -5,5 +5,5 @@ host=${1:-localhost}
 port=${2:-3100}
 
 for i in {1..11}; do
-  python3 ./Run_Player.py -i $host -p $port -u $i -t FCP-debug -P 0 -D 1 &
+  python3 ./Run_Player.py -i $host -p $port -u $i -t CEIAdebug -P 0 -D 1 &
 done

@@ -37,7 +37,8 @@ class Fall(gym.Env):
 
         # Check if cheats are enabled
         assert np.any(self.player.world.robot.cheat_abs_pos), "Cheats are not enabled! Run_Utils.py -> Server -> Cheats"
-        
+
+        self.previous_height = 0.5 # Altura inicial aproximada
 
     def observe(self):
 
@@ -90,28 +91,31 @@ class Fall(gym.Env):
         Draw.clear_all()
         self.player.terminate()
 
-    def step(self, action):
-        
-        r = self.player.world.robot
-        r.set_joints_target_position_direct( # commit actions:
-            slice(self.no_of_joints),        # act on all available joints
-            action*10,                       # scale actions up to motivate early exploration
-            harmonize=False                  # there is no point in harmonizing actions if the targets change at every step  
-        )
+def step(self, action):
+    # ... (código para aplicar ação e simular) ...
+    self.sync()
+    self.step_counter += 1
+    self.observe()
 
-        self.sync() # run simulation step
-        self.step_counter += 1
-        self.observe() 
+    current_height = self.obs[-1]
+    
+    # 1. Recompensa por progresso
+    height_delta = self.previous_height - current_height
+    progress_reward = max(0, height_delta * 10) # Recompensa se a altura diminuiu, o 10 é um fator de escala
+    self.previous_height = current_height
 
-        if self.obs[-1] < 0.15:           # terminal state: the robot has fallen successfully
-            return self.obs, 1, True, {}  # Reward: 1 (this reward will motivate a fast reaction if the return is discounted)
-        elif self.step_counter > 150:     # terminal state: 3s passed and robot has not fallen (may be stuck)
-            return self.obs, 0, True, {}
-        else:
-            return self.obs, 0, False, {} # Reward: 0
+    # 2. Penalidade por tempo
+    time_penalty = -0.01
 
+    reward = progress_reward + time_penalty
 
-
+    # Condições de término
+    if current_height < 0.15:
+        return self.obs, 10, True, {}  # Recompensa final grande por sucesso!
+    elif self.step_counter > 150:
+        return self.obs, -1, True, {} # Penalidade por falha/tempo esgotado
+    else:
+        return self.obs, reward, False, {}
 
 
 class Train(Train_Base):

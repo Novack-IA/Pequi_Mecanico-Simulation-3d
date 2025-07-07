@@ -39,6 +39,7 @@ class Fall(gym.Env):
         assert np.any(self.player.world.robot.cheat_abs_pos), "Cheats are not enabled! Run_Utils.py -> Server -> Cheats"
 
         self.previous_height = 0.5 # Altura inicial aproximada
+        
 
     def observe(self):
 
@@ -91,31 +92,31 @@ class Fall(gym.Env):
         Draw.clear_all()
         self.player.terminate()
 
-def step(self, action):
-    # ... (código para aplicar ação e simular) ...
-    self.sync()
-    self.step_counter += 1
-    self.observe()
+    def step(self, action):
+        # ... (código para aplicar ação e simular) ...
+        self.sync()
+        self.step_counter += 1
+        self.observe()
 
-    current_height = self.obs[-1]
-    
-    # 1. Recompensa por progresso
-    height_delta = self.previous_height - current_height
-    progress_reward = max(0, height_delta * 10) # Recompensa se a altura diminuiu, o 10 é um fator de escala
-    self.previous_height = current_height
+        current_height = self.obs[-1]
+        
+        # 1. Recompensa por progresso
+        height_delta = self.previous_height - current_height
+        progress_reward = max(0, height_delta * 10) # Recompensa se a altura diminuiu, o 10 é um fator de escala
+        self.previous_height = current_height
 
-    # 2. Penalidade por tempo
-    time_penalty = -0.01
+        # 2. Penalidade por tempo
+        time_penalty = -0.01
 
-    reward = progress_reward + time_penalty
+        reward = progress_reward + time_penalty
 
-    # Condições de término
-    if current_height < 0.15:
-        return self.obs, 10, True, {}  # Recompensa final grande por sucesso!
-    elif self.step_counter > 150:
-        return self.obs, -1, True, {} # Penalidade por falha/tempo esgotado
-    else:
-        return self.obs, reward, False, {}
+        # Condições de término
+        if current_height < 0.15:
+            return self.obs, 10, True, {}  # Recompensa final grande por sucesso!
+        elif self.step_counter > 150:
+            return self.obs, -1, True, {} # Penalidade por falha/tempo esgotado
+        else:
+            return self.obs, reward, False, {}
 
 
 class Train(Train_Base):
@@ -134,7 +135,6 @@ class Train(Train_Base):
         # *RV -> Recommended value for more complex environments
         folder_name = f'Fall_R{self.robot_type}'
         model_path = f'./scripts/gyms/logs/{folder_name}/'
-        log_folder = f'./scripts/gyms/logs/'
 
         print("Model path:", model_path)
 
@@ -151,9 +151,9 @@ class Train(Train_Base):
 
         try:
             if "model_file" in args: # retrain
-                model = PPO.load( args["model_file"], env=env, n_envs=n_envs, n_steps=n_steps_per_env, batch_size=minibatch_size, learning_rate=learning_rate, device='cpu', tensorboard_log=log_folder)
+                model = PPO.load( args["model_file"], env=env, n_envs=n_envs, n_steps=n_steps_per_env, batch_size=minibatch_size, learning_rate=learning_rate )
             else: # train new model
-                model = PPO( "MlpPolicy", env=env, verbose=1, n_steps=n_steps_per_env, batch_size=minibatch_size, learning_rate=learning_rate, device='cpu', tensorboard_log=log_folder)
+                model = PPO( "MlpPolicy", env=env, verbose=1, n_steps=n_steps_per_env, batch_size=minibatch_size, learning_rate=learning_rate )
 
             model_path = self.learn_model( model, total_steps, model_path, eval_env=eval_env, eval_freq=n_steps_per_env*10, save_freq=n_steps_per_env*20, backup_env_file=__file__ )
         except KeyboardInterrupt:

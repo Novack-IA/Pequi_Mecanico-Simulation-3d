@@ -1,7 +1,7 @@
 from agent.Base_AgentCEIA import Base_Agent as Agent
 from world.commons.Draw import Draw
 from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import SubprocVecEnv
+from stable_baselines3.common.vec_env import SubprocVecEnv, VecNormalize
 from scripts.commons.Server import Server
 from scripts.commons.Train_Base import Train_Base
 from time import sleep
@@ -145,14 +145,16 @@ class Train(Train_Base):
 
         servers = Server( self.server_p, self.monitor_p_1000, n_envs+1 ) #include 1 extra server for testing
 
-        env = SubprocVecEnv( [init_env(i) for i in range(n_envs)] )
-        eval_env = SubprocVecEnv( [init_env(n_envs)] )
+        # env = SubprocVecEnv( [init_env(i) for i in range(n_envs)] )
+        # eval_env = SubprocVecEnv( [init_env(n_envs)] )
+        env = VecNormalize(env, norm_obs=True, norm_reward=True)
+        eval_env = VecNormalize(eval_env, training=False, norm_obs=True, norm_reward=False)
 
         try:
             if "model_file" in args: # retrain
-                model = PPO.load( args["model_file"], env=env, n_envs=n_envs, n_steps=n_steps_per_env, batch_size=minibatch_size, learning_rate=learning_rate )
+                model = PPO.load( args["model_file"], env=env, n_envs=n_envs, n_steps=n_steps_per_env, batch_size=minibatch_size, learning_rate=learning_rate, device='cpu')
             else: # train new model
-                model = PPO( "MlpPolicy", env=env, verbose=1, n_steps=n_steps_per_env, batch_size=minibatch_size, learning_rate=learning_rate )
+                model = PPO( "MlpPolicy", env=env, verbose=1, n_steps=n_steps_per_env, batch_size=minibatch_size, learning_rate=learning_rate, device='cpu')
 
             model_path = self.learn_model( model, total_steps, model_path, eval_env=eval_env, eval_freq=n_steps_per_env*10, save_freq=n_steps_per_env*20, backup_env_file=__file__ )
         except KeyboardInterrupt:

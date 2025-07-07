@@ -1,0 +1,57 @@
+[
+    {
+        "number": "1",
+        "initial_position": [-14, 0],
+        "robot_type": 0
+    },
+    {
+        "number": "2",
+        "initial_position": [-11, -3],
+        "robot_type": 1
+    },
+    {
+        "number": "3",
+        "initial_position": [-11, 3],
+        "robot_type": 1
+    },
+    {
+        "number": "4",
+        "initial_position": [-9, 0],
+        "robot_type": 1
+    },
+    {
+        "number": "5",
+        "initial_position": [-6, -4],
+        "robot_type": 2
+    },
+    {
+        "number": "6",
+        "initial_position": [-5, 0],
+        "robot_type": 2
+    },
+    {
+        "number": "7",
+        "initial_position": [-4, -2],
+        "robot_type": 2
+    },
+    {
+        "number": "8",
+        "initial_position": [-6, 4],
+        "robot_type": 4
+    },
+    {
+        "number": "9",
+        "initial_position": [-1, -2.5],
+        "robot_type": 3
+    },
+    {
+        "number": "10",
+        "initial_position": [-1, 2.5],
+        "robot_type": 3
+    },
+    {
+        "number": "11",
+        "initial_position": [-4, 2],
+        "robot_type": 4
+    }
+]

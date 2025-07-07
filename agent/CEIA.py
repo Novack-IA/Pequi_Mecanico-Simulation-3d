@@ -3,73 +3,24 @@ from math_ops.Math_Ops import Math_Ops as M
 from behaviors.custom.Dribble.Dribble import Dribble
 import math
 import numpy as np
-
-team = [
-    {
-        'number': '1',
-        'initial_position': [-14, 0],
-        'robot_type': 0
-    },
-    {
-        'number': '2',
-        'initial_position': [-11, -3],
-        'robot_type': 1
-    },
-    {
-        'number': '3',
-        'initial_position': [-11, 3],
-        'robot_type': 1
-    },
-    {
-        'number': '4',
-        'initial_position': [-9, 0],
-        'robot_type': 1
-    },
-    {
-        'number': '5',
-        'initial_position': [-6, -4],
-        'robot_type': 2
-    },
-    {
-        'number': '6',
-        'initial_position': [-5, 0],
-        'robot_type': 2
-    },
-    {
-        'number': '7',
-        'initial_position': [-4, -2],
-        'robot_type': 2
-    },
-    {
-        'number': '8',
-        'initial_position': [-6, 4],
-        'robot_type': 4
-    },
-    {
-        'number': '9',
-        'initial_position': [-1, -2.5],
-        'robot_type': 3
-    },
-    {
-        'number': '10',
-        'initial_position': [-1, 2.5],
-        'robot_type': 3
-    },
-    {
-        'number': '11',
-        'initial_position': [-4, 2],
-        'robot_type': 4
-    },
-]
+import json
 
 class Agent(Base_Agent):
     def __init__(self, host:str, agent_port:int, monitor_port:int, unum:int,
                  team_name:str, enable_log, enable_draw, wait_for_server=True, is_fat_proxy=False) -> None:
         
+        # Load team formation
+        with open('config/formation.json', 'r') as f:
+            team_formation = json.load(f)
+
+        # Finds the correct robot in the config
+        robot_config = next((robot for robot in team_formation if robot['number'] == unum), None)
+        if not robot_config:
+            raise ValueError(f"Configuration of the {unum} player not found.")
+
         # define robot type
-        robot = team[unum-1]
-        robot_type = robot['robot_type']
-        self.init_pos = robot['initial_position'] # initial formation
+        robot_type = robot_config['robot_type']
+        self.init_pos = robot_config['initial_position'] # initial formation
 
         # Initialize base agent
         # Args: Server IP, Agent Port, Monitor Port, Uniform No., Robot Type, Team Name, Enable Log, Enable Draw, play mode correction, Wait for Server, Hear Callback

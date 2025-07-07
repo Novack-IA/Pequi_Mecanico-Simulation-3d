@@ -4,7 +4,7 @@ import numpy as np
 class Behavior():
 
     def __init__(self, base_agent) -> None:
-        from agent.Base_AgentCEIA import Base_Agent # for type hinting
+        from agent.Base_AgentCEIA import Base_Agent #para dicas de tipo
         self.base_agent : Base_Agent = base_agent
         self.world = self.base_agent.world
         self.state_behavior_name = None
@@ -12,7 +12,7 @@ class Behavior():
         self.previous_behavior = None
         self.previous_behavior_duration = None
 
-        #Initialize standard behaviors
+        #Inicializar comportamentos padrão
         from behaviors.Poses import Poses
         from behaviors.Slot_Engine import Slot_Engine
         from behaviors.Head import Head
@@ -54,7 +54,7 @@ class Behavior():
 
         '''---- End of manual declarations ----'''
 
-        # Prepare callbacks
+        # Preparar retornos de chamada
         self.objects = {cls.__name__ : cls(self.base_agent) for cls in classes}
 
         return {name: (o.description,o.auto_head,
@@ -102,25 +102,25 @@ class Behavior():
 
         assert name in self.behaviors, f"Behavior {name} does not exist!"
 
-        # Check if transitioning from other behavior
+        # Verifique se está em transição de outro comportamento
         reset = bool(self.state_behavior_name != name)
         if reset: 
             if self.state_behavior_name is not None:
-                self.previous_behavior = self.state_behavior_name # Previous behavior was interrupted (did not finish)
+                self.previous_behavior = self.state_behavior_name # O comportamento anterior foi interrompido (não terminou)
             self.previous_behavior_duration = (self.world.time_local_ms - self.state_behavior_init_ms) / 1000.0
             self.state_behavior_name = name
             self.state_behavior_init_ms = self.world.time_local_ms
 
-        # Control head orientation if behavior allows it
+        # Controle a orientação da cabeça se o comportamento permitir
         if self.behaviors[name][1]:
             self.head.execute()
 
-        # Execute behavior
+        # Executar comportamento
         if not self.behaviors[name][2](reset,*args):
             return False
 
-        # The behavior has finished
-        self.previous_behavior = self.state_behavior_name # Store current behavior name
+        #O comportamento terminou
+        self.previous_behavior = self.state_behavior_name # Armazenar o nome do comportamento atual
         self.state_behavior_name = None
         return True
 
@@ -141,11 +141,11 @@ class Behavior():
 
         assert name in self.behaviors, f"Behavior {name} does not exist!"
 
-        # Control head orientation if behavior allows it
+        #Controle a orientação da cabeça se o comportamento permitir
         if self.behaviors[name][1]:
             self.head.execute()
 
-        # Execute behavior
+        # Executar comportamento
         return self.behaviors[name][2](reset,*args)
 
     
@@ -168,12 +168,11 @@ class Behavior():
 
         while True:
             done = self.execute(name, *args)
-            if done and skip_last: break # Exit here if last command is irrelevant
+            if done and skip_last: break # Saia aqui se o último comando for irrelevante
             self.base_agent.scom.commit_and_send( r.get_command() ) 
             self.base_agent.scom.receive()
-            if done: break # Exit here if last command is part of the behavior
-
-        # reset to avoid polluting the next command
+            if done: break # Saia aqui se o último comando fizer parte do comportamento
+        #redefinir para evitar poluir o próximo comando
         r.joints_target_speed = np.zeros_like(r.joints_target_speed)
 
 

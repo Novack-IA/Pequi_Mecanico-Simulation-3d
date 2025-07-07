@@ -43,14 +43,13 @@ class Walk():
         '''
         r = self.world.robot
 
-        #------------------------ 0. Override reset (since some behaviors use this as a sub-behavior)
+        #------------------------ 0. Substituir redefinição (já que alguns comportamentos usam isso como um subcomportamento)
         if reset and self.world.time_local_ms - self.last_executed == 20:
             reset = False
         self.last_executed = self.world.time_local_ms
 
-        #------------------------ 1. Define walk parameters 
-
-        if is_target_absolute: # convert to target relative to (head position + torso orientation)
+        #------------------------ 1. Definir parâmetros de caminhada
+        if is_target_absolute: # converter para alvo em relação a (posição da cabeça + orientação do tronco)
             raw_target = target_2d - r.loc_head_position[:2]
             self.env.walk_rel_target = M.rotate_2d_vec(raw_target, -r.imu_torso_orientation)
         else:
@@ -61,7 +60,7 @@ class Walk():
         else:
             self.env.walk_distance = distance # MAX_LINEAR_DIST = 0.5
 
-        # Relative orientation values are decreased to avoid overshoot
+        # Os valores de orientação relativa são diminuídos para evitar ultrapassagem
         if orientation is None:
             self.env.walk_rel_orientation = M.vector_angle(self.env.walk_rel_target) * 0.3
         elif is_orientation_absolute:
@@ -69,7 +68,7 @@ class Walk():
         else:
             self.env.walk_rel_orientation = orientation * 0.3
 
-        #------------------------ 2. Execute behavior
+        #------------------------ 2. Executar comportamento
 
         obs = self.env.observe(reset)
         action = run_mlp(obs, self.model)   

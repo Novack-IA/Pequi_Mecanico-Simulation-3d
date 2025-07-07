@@ -9,14 +9,14 @@ class Get_Up():
         self.world = base_agent.world
         self.description = "Get Up using the most appropriate skills"
         self.auto_head = False
-        self.MIN_HEIGHT = 0.3 # minimum value for the head's height
-        self.MAX_INCLIN = 50  # maximum torso inclination in degrees
+        self.MIN_HEIGHT = 0.3 #valor mínimo para a altura da cabeça
+        self.MAX_INCLIN = 50  #inclinação máxima do tronco em graus
         self.STABILITY_THRESHOLD = 4
 
     def reset(self):
         self.state = 0
         self.gyro_queue = deque(maxlen=self.STABILITY_THRESHOLD)
-        self.watchdog = 0 # when player has the shaking bug, it is never stable enough to get up
+        self.watchdog = 0 # quando o jogador tem o bug de tremor, ele nunca fica estável o suficiente para se levantar
 
     def execute(self,reset):
 
@@ -26,26 +26,26 @@ class Get_Up():
         if reset:
             self.reset()
 
-        if self.state == 0: # State 0: go to pose "Zero"
+        if self.state == 0: # Estado 0: ir para a pose "Zero"
 
             self.watchdog += 1
-            self.gyro_queue.append( max(abs(r.gyro)) ) # log last STABILITY_THRESHOLD values
+            self.gyro_queue.append( max(abs(r.gyro)) ) # registrar os últimos valores de STABILITY_THRESHOLD
 
-            # advance to next state if behavior is complete & robot is stable
+            # avançar para o próximo estado se o comportamento estiver completo e o robô estiver estável
             if (execute_sub_behavior("Zero",None) and len(self.gyro_queue) == self.STABILITY_THRESHOLD 
                 and all(g < 10 for g in self.gyro_queue)) or self.watchdog > 100:
 
-                # determine how to get up
+                #determinar como se levantar
                 if r.acc[0] < -4 and abs(r.acc[1]) < 2 and abs(r.acc[2]) < 3:
-                    execute_sub_behavior("Get_Up_Front", True) # reset behavior
+                    execute_sub_behavior("Get_Up_Front", True) # redefinir comportamento
                     self.state = 1
                 elif r.acc[0] > 4 and abs(r.acc[1]) < 2 and abs(r.acc[2]) < 3:
-                    execute_sub_behavior("Get_Up_Back", True) # reset behavior
+                    execute_sub_behavior("Get_Up_Back", True) # redefinir comportamento
                     self.state = 2
-                elif r.acc[2] > 8: # fail-safe if vision is not up to date: if pose is 'Zero' and torso is upright, the robot is already up
+                elif r.acc[2] > 8: # à prova de falhas se a visão não estiver atualizada: se a pose for 'Zero' e o torso estiver ereto, o robô já está em pé
                     return True
                 else:
-                    execute_sub_behavior("Flip", True) # reset behavior
+                    execute_sub_behavior("Flip", True) # redefinir comportamento
                     self.state = 3
 
         elif self.state == 1:
@@ -64,5 +64,5 @@ class Get_Up():
     def is_ready(self):
         ''' Returns True if the Get Up behavior is ready (= robot is down) '''
         r = self.world.robot
-        # check if z < 5 and acc magnitude > 8 and any visual indicator says we fell
+        # verifique se z < 5 e magnitude de aceleração > 8 e qualquer indicador visual diz que caímos
         return r.acc[2] < 5 and np.dot(r.acc,r.acc) > 64 and (r.loc_head_z < self.MIN_HEIGHT or r.imu_torso_inclination > self.MAX_INCLIN)

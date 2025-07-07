@@ -1,29 +1,29 @@
 __pycache__/
 config.json
 
-# ignore logs but not logger
+# ignorar logs, mas não logger
 /logs/*
 !/logs/*.py
 /scripts/gyms/logs
 
-# ignore exported models
+# ignorar modelos exportados
 /scripts/gyms/export
 
-# ignore shared libs and binaries and compilation info
+# ignorar bibliotecas compartilhadas, binários e informações de compilação
 *.so
 *.bin
 *.c_info
 *.spec
 
-# ignore profile made by python profilers
+# ignorar perfil feito por profilers python
 profile
 
-# ignore hidden folders but include hidden files
+#ignorar pastas ocultas, mas incluir arquivos ocultos
 .*/
 
-# ignore test files in root folder
+# ignorar arquivos de teste na pasta raiz
 /test*
 
-# ignore bundle folder but not bundle script
+# ignorar pasta do pacote, mas não o script do pacote
 /bundle/*
 !/bundle/bundle.sh

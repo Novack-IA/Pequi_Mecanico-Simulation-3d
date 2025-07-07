@@ -1,10 +1,10 @@
 from scripts.commons.Script import Script
-script = Script() # Initialize: load config file, parse arguments, build cpp modules
+script = Script() # Inicializar: carregar arquivo de configuração, analisar argumentos, construir módulos cpp
 a = script.args
 
 from agent.CEIA import Agent
 
-# Args: Server IP, Agent Port, Monitor Port, Uniform No., Team name, Enable Log, Enable Draw
+# Argumentos: IP do servidor, porta do agente, porta do monitor, número do uniforme, nome da equipe, habilitar log, habilitar desenho
 team_args = ((a.i, a.p, a.m, u, a.t, True, True) for u in range(1,12))
 script.batch_create(Agent,team_args)
 

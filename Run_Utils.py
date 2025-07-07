@@ -1,10 +1,10 @@
 def main():
 
     from scripts.commons.Script import Script
-    script = Script() #Initialize: load config file, parse arguments, build cpp modules (warns the user about inconsistencies before choosing a test script)
+    script = Script() #Inicializar: carregar arquivo de configuração, analisar argumentos, construir módulos cpp (avisa o usuário sobre inconsistências antes de escolher um script de teste)
 
-    # Allows using local version of StableBaselines3 (e.g. https://github.com/m-abr/Adaptive-Symmetry-Learning)
-    # place the 'stable-baselines3' folder in the parent directory of this project
+# Permite usar a versão local do StableBaselines3 (por exemplo, https://github.com/m-abr/Adaptive-Symmetry-Learning)
+# colocar a pasta 'stable-baselines3' no diretório pai deste projeto
     import sys
     from os.path import dirname, abspath, join
     sys.path.insert( 0, join( dirname(dirname( abspath(__file__) )), "stable-baselines3") )
@@ -49,12 +49,12 @@ def main():
             from agent.Base_AgentCEIA import Base_Agent
             obj = getattr(mod,cls_name)(script)
             try:
-                obj.execute() # Util may return normally or through KeyboardInterrupt
+                obj.execute() #O Util pode retornar normalmente ou através do KeyboardInterrupt
             except KeyboardInterrupt:
                 print("\nctrl+c pressed, returning...\n")
-            Draw.clear_all()            # clear all drawings
-            Base_Agent.terminate_all()  # close all server sockets + monitor socket
-            script.players = []         # clear list of players created through batch commands
+            Draw.clear_all()            # limpar todos os desenhos
+            Base_Agent.terminate_all()  # feche todos os soquetes do servidor + monitore o soquete
+            script.players = []         # limpar lista de jogadores criados por meio de comandos em lote
             del obj
 
         else:
@@ -87,7 +87,7 @@ def main():
                         mod.Train(script).train(model_info)
 
 
-# allow child processes to bypass this file
+# permitir que processos filho ignorem este arquivo
 if __name__ == "__main__":
     try:
         main()

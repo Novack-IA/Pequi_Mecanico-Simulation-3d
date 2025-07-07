@@ -14,7 +14,7 @@ class Base_Agent():
     def __init__(self, host:str, agent_port:int, monitor_port:int, unum:int, robot_type:int, team_name:str, enable_log:bool=True,
                   enable_draw:bool=True, apply_play_mode_correction:bool=True, wait_for_server:bool=True, hear_callback=None) -> None:
 
-        self.radio = None # hear_message may be called during Server_Comm instantiation
+        self.radio = None # hear_message pode ser chamado durante a instanciação do Server_Comm
         self.logger = Logger(enable_log, f"{team_name}_{unum}")
         self.world = World(robot_type, team_name, unum, apply_play_mode_correction, enable_draw, self.logger, host)
         self.world_parser = World_Parser(self.world, self.hear_message if hear_callback is None else hear_callback)
@@ -35,13 +35,13 @@ class Base_Agent():
             self.radio.receive(msg)
 
     def terminate(self):
-        # close shared monitor socket if this is the last agent on this thread
+        # feche o soquete do monitor compartilhado se este for o último agente neste tópico
         self.scom.close(close_monitor_socket=(len(Base_Agent.all_agents)==1))
         Base_Agent.all_agents.remove(self)
 
     @staticmethod
     def terminate_all():
         for o in Base_Agent.all_agents:
-            o.scom.close(True) # close shared monitor socket, if it exists
+            o.scom.close(True) # feche o soquete do monitor compartilhado, se existir
         Base_Agent.all_agents = []
 

@@ -11,13 +11,13 @@ class Step():
         self.auto_head = True
 
         nao_specs = self.ik.NAO_SPECS
-        self.leg_length = nao_specs[1] + nao_specs[3] # upper leg height + lower leg height
+        self.leg_length = nao_specs[1] + nao_specs[3] # altura da parte superior da perna + altura da parte inferior da perna
 
-        feet_y_dev = nao_specs[0] * 1.2 # wider step
+        feet_y_dev = nao_specs[0] * 1.2 # passo mais largo
         sample_time = self.world.robot.STEPTIME
         max_ankle_z = nao_specs[5]
 
-        # Initialize step generator with constants
+        # Inicializar gerador de passos com constantes
         self.step_generator = Step_Generator(feet_y_dev, sample_time, max_ankle_z)
 
 
@@ -25,23 +25,23 @@ class Step():
 
         lfy,lfz,rfy,rfz = self.step_generator.get_target_positions(reset, ts_per_step, z_span, self.leg_length * z_max)
  
-        #----------------- Apply IK to each leg + Set joint targets
+        #----------------- Aplique IK em cada perna + Defina alvos articulares
           
-        # Left leg 
+        # Perna esquerda
         indices, self.values_l, error_codes = self.ik.leg((0,lfy,lfz), (0,0,0), True, dynamic_pose=False)
         for i in error_codes:
             print(f"Joint {i} is out of range!" if i!=-1 else "Position is out of reach!")
 
         self.world.robot.set_joints_target_position_direct(indices, self.values_l)
 
-        # Right leg
+        # Perna direita
         indices, self.values_r, error_codes = self.ik.leg((0,rfy,rfz), (0,0,0), False, dynamic_pose=False)
         for i in error_codes:
             print(f"Joint {i} is out of range!" if i!=-1 else "Position is out of reach!")
 
         self.world.robot.set_joints_target_position_direct(indices, self.values_r)
 
-        # ----------------- Fixed arms
+        # -----------------Braços fixos
 
         indices = [14,16,18,20]
         values  = np.array([-80,20,90,0])

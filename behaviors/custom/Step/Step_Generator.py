@@ -10,8 +10,8 @@ class Step_Generator():
         self.sample_time = sample_time
         self.state_is_left_active = False
         self.state_current_ts = 0
-        self.switch = False # switch legs
-        self.external_progress = 0 # non-overlaped progress
+        self.switch = False # trocar as pernas
+        self.external_progress = 0 # progresso não sobreposto
         self.max_ankle_z = max_ankle_z
 
 
@@ -27,47 +27,47 @@ class Step_Generator():
 
         assert type(ts_per_step)==int and ts_per_step > 0, "ts_per_step must be a positive integer!"
 
-        #-------------------------- Advance 1ts
+        #-------------------------- Avançar 1ts
         if reset:
-            self.ts_per_step = ts_per_step        # step duration in time steps
+            self.ts_per_step = ts_per_step        # duração do passo em passos de tempo
             self.swing_height = z_span
-            self.max_leg_extension = z_extension  # maximum distance between ankle to center of both hip joints
+            self.max_leg_extension = z_extension  #distância máxima entre o tornozelo e o centro de ambas as articulações do quadril
             self.state_current_ts = 0
             self.state_is_left_active = False 
             self.switch = False
         elif self.switch:
             self.state_current_ts = 0
-            self.state_is_left_active = not self.state_is_left_active # switch leg
+            self.state_is_left_active = not self.state_is_left_active # mudar de perna
             self.switch = False
         else:
             self.state_current_ts += 1
 
-        #-------------------------- Compute COM.y
+        #-------------------------- Calcular COM.y
         W = math.sqrt(self.Z0/self.GRAVITY)
 
         step_time = self.ts_per_step * self.sample_time
         time_delta = self.state_current_ts * self.sample_time
  
-        y0 = self.feet_y_dev # absolute initial y value
+        y0 = self.feet_y_dev # valor inicial absoluto de y
         y_swing = y0 + y0 * (  math.sinh((step_time - time_delta)/W) + math.sinh(time_delta/W)  ) / math.sinh(-step_time/W)
 
-        #-------------------------- Cap maximum extension and swing height
-        z0 = min(-self.max_leg_extension, self.max_ankle_z) #  capped initial z value
-        zh = min(self.swing_height, self.max_ankle_z - z0) # capped swing height
+        #-------------------------- Extensão máxima da tampa e altura de giro
+        z0 = min(-self.max_leg_extension, self.max_ankle_z) # valor z inicial limitado
+        zh = min(self.swing_height, self.max_ankle_z - z0) # altura de balanço tampada
 
-        #-------------------------- Compute Z Swing
+        #-------------------------- Calcular balanço Z
         progress = self.state_current_ts / self.ts_per_step
         self.external_progress = self.state_current_ts / (self.ts_per_step-1)
         active_z_swing = zh * math.sin(math.pi * progress)
 
-        #-------------------------- Accept new parameters after final step
+        #-------------------------- Aceitar novos parâmetros após a etapa final
         if self.state_current_ts + 1 >= self.ts_per_step:
-            self.ts_per_step = ts_per_step        # step duration in time steps
+            self.ts_per_step = ts_per_step        # duração do passo em passos de tempo
             self.swing_height = z_span
-            self.max_leg_extension = z_extension  # maximum distance between ankle to center of both hip joints
+            self.max_leg_extension = z_extension  #distância máxima entre o tornozelo e o centro de ambas as articulações do quadril
             self.switch = True
 
-        #-------------------------- Distinguish active leg
+        #-------------------------- Distinguir perna ativa
         if self.state_is_left_active:
             return y0+y_swing, active_z_swing+z0, -y0+y_swing, z0
         else:

@@ -13,31 +13,30 @@ class Fall():
         with open(M.get_active_directory("/behaviors/custom/Fall/fall.pkl"), 'rb') as f:
             self.model = pickle.load(f)
 
-        self.action_size = len(self.model[-1][0]) # extracted from size of Neural Network's last layer bias
+        self.action_size = len(self.model[-1][0]) #extraído do tamanho do último viés da camada da rede neural
         self.obs = np.zeros(self.action_size+1, np.float32)
 
-        self.controllable_joints = min(self.world.robot.no_of_joints, self.action_size) # compatibility between different robot types
+        self.controllable_joints = min(self.world.robot.no_of_joints, self.action_size) # compatibilidade entre diferentes tipos de robôs
 
     def observe(self):
         r = self.world.robot
         
         for i in range(self.action_size):
-            self.obs[i] = r.joints_position[i] / 100 # naive scale normalization
+            self.obs[i] = r.joints_position[i] / 100 #normalização de escala ingênua
 
-        self.obs[self.action_size] = r.cheat_abs_pos[2] # head.z (alternative: r.loc_head_z)
+        self.obs[self.action_size] = r.cheat_abs_pos[2] # head.z (alternativa: r.loc_head_z)
       
     def execute(self,reset) -> bool:
         self.observe()
         action = run_mlp(self.obs, self.model) 
         
-        self.world.robot.set_joints_target_position_direct( # commit actions:
-            slice(self.controllable_joints), # act on trained joints
-            action*10,                       # scale actions up to motivate early exploration
-            harmonize=False                  # there is no point in harmonizing actions if the targets change at every step  
+        self.world.robot.set_joints_target_position_direct( # cometer ações:
+            slice(self.controllable_joints), # atuar em articulações treinadas
+            action*10,                       #aumentar as ações para motivar a exploração precoce
+            harmonize=False                  # não faz sentido harmonizar ações se os alvos mudam a cada passo
         )
 
-        return self.world.robot.loc_head_z < 0.15 # finished when head height < 0.15 m
-
+        return self.world.robot.loc_head_z < 0.15 #terminado quando a altura da cabeça for < 0,15 m
     def is_ready(self) -> any:
         ''' Returns True if this behavior is ready to start/continue under current game/robot conditions '''
         return True

@@ -8,40 +8,40 @@ class Agent(Base_Agent):
     def __init__(self, host:str, agent_port:int, monitor_port:int, unum:int,
                  team_name:str, enable_log, enable_draw, wait_for_server=True, is_fat_proxy=False) -> None:
         
-        # define robot type
+        # definir tipo de robô
         robot_type = (0,1,1,1,2,3,3,3,4,4,4)[unum-1]
 
-        # Initialize base agent
-        # Args: Server IP, Agent Port, Monitor Port, Uniform No., Robot Type, Team Name, Enable Log, Enable Draw, play mode correction, Wait for Server, Hear Callback
+        # Inicializar agente base
+        # Argumentos: IP do servidor, porta do agente, porta do monitor, número do uniforme, tipo de robô, nome da equipe, habilitar log, habilitar draw, correção do modo de jogo, esperar pelo servidor, ouvir retorno de chamada
         super().__init__(host, agent_port, monitor_port, unum, robot_type, team_name, enable_log, enable_draw, True, wait_for_server, None)
 
         self.enable_draw = enable_draw
-        self.state = 0  # 0-Normal, 1-Getting up, 2-Kicking
+        self.state = 0  #0-Normal, 1-Levantar, 2-Chutar
         self.kick_direction = 0
         self.kick_distance = 0
         self.fat_proxy_cmd = "" if is_fat_proxy else None
-        self.fat_proxy_walk = np.zeros(3) # filtered walk parameters for fat proxy
+        self.fat_proxy_walk = np.zeros(3) # parâmetros de caminhada filtrados para proxy de gordura
 
         self.init_pos = ([-14,0],[-9,-5],[-9,0],[-9,5],[-5,-5],[-5,0],[-5,5],[-1,-6],[-1,-2.5],[-1,2.5],[-1,6])[unum-1] # initial formation
 
 
     def beam(self, avoid_center_circle=False):
         r = self.world.robot
-        pos = self.init_pos[:] # copy position list 
+        pos = self.init_pos[:] #copiar lista de posições
         self.state = 0
 
-        # Avoid center circle by moving the player back 
+        # Evite o círculo central movendo o jogador para trás
         if avoid_center_circle and np.linalg.norm(self.init_pos) < 2.5:
             pos[0] = -2.3 
 
         if np.linalg.norm(pos - r.loc_head_position[:2]) > 0.1 or self.behavior.is_ready("Get_Up"):
-            self.scom.commit_beam(pos, M.vector_angle((-pos[0],-pos[1]))) # beam to initial position, face coordinate (0,0)
+            self.scom.commit_beam(pos, M.vector_angle((-pos[0],-pos[1]))) # 
         else:
-            if self.fat_proxy_cmd is None: # normal behavior
+            if self.fat_proxy_cmd is None: # comportamento normal
                 self.behavior.execute("Zero_Bent_Knees_Auto_Head")
-            else: # fat proxy behavior
+            else: # comportamento de proxy gordo
                 self.fat_proxy_cmd += "(proxy dash 0 0 0)"
-                self.fat_proxy_walk = np.zeros(3) # reset fat proxy walk
+                self.fat_proxy_walk = np.zeros(3) # redefinir proxy de gordura wal
 
 
     def move(self, target_2d=(0,0), orientation=None, is_orientation_absolute=True,
@@ -69,8 +69,8 @@ class Agent(Base_Agent):
         '''
         r = self.world.robot
 
-        if self.fat_proxy_cmd is not None: # fat proxy behavior
-            self.fat_proxy_move(target_2d, orientation, is_orientation_absolute) # ignore obstacles
+        if self.fat_proxy_cmd is not None: # comportamento de proxy gordo
+            self.fat_proxy_move(target_2d, orientation, is_orientation_absolute) # ignorar obstáculos
             return
 
         if avoid_obstacles:
@@ -114,9 +114,9 @@ class Agent(Base_Agent):
         self.kick_direction = self.kick_direction if kick_direction is None else kick_direction
         self.kick_distance = self.kick_distance if kick_distance is None else kick_distance
 
-        if self.fat_proxy_cmd is None: # normal behavior
-            return self.behavior.execute("Basic_Kick", self.kick_direction, abort) # Basic_Kick has no kick distance control
-        else: # fat proxy behavior
+        if self.fat_proxy_cmd is None: # comportamento normal
+            return self.behavior.execute("Basic_Kick", self.kick_direction, abort) # Basic_Kick não tem controle de distância de chute
+        else: # comportamento de proxy gordo
             return self.fat_proxy_kick()
 
 
@@ -131,7 +131,7 @@ class Agent(Base_Agent):
         ball_vec = ball_2d - my_head_pos_2d
         ball_dir = M.vector_angle(ball_vec)
         ball_dist = np.linalg.norm(ball_vec)
-        ball_sq_dist = ball_dist * ball_dist # for faster comparisons
+        ball_sq_dist = ball_dist * ball_dist # para comparações mais rápidas
         ball_speed = np.linalg.norm(w.get_ball_abs_vel(6)[:2])
         behavior = self.behavior
         goal_dir = M.target_abs_angle(ball_2d,(15.05,0))
@@ -139,30 +139,30 @@ class Agent(Base_Agent):
         PM = w.play_mode
         PM_GROUP = w.play_mode_group
 
-        #--------------------------------------- 1. Preprocessing
+        #--------------------------------------- 1. Pré-processamento
 
-        slow_ball_pos = w.get_predicted_ball_pos(0.5) # predicted future 2D ball position when ball speed <= 0.5 m/s
+        slow_ball_pos = w.get_predicted_ball_pos(0.5) #posição futura prevista da bola 2D quando a velocidade da bola <= 0,5 m/s
 
-        # list of squared distances between teammates (including self) and slow ball (sq distance is set to 1000 in some conditions)
-        teammates_ball_sq_dist = [np.sum((p.state_abs_pos[:2] - slow_ball_pos) ** 2)  # squared distance between teammate and ball
+        #lista de distâncias quadradas entre companheiros de equipe (incluindo ele mesmo) e a bola lenta (a distância quadrada é definida como 1000 em algumas condições)
+        teammates_ball_sq_dist = [np.sum((p.state_abs_pos[:2] - slow_ball_pos) ** 2)  # distância quadrada entre o companheiro de equipe e a bola
                                   if p.state_last_update != 0 and (w.time_local_ms - p.state_last_update <= 360 or p.is_self) and not p.state_fallen
-                                  else 1000 # force large distance if teammate does not exist, or its state info is not recent (360 ms), or it has fallen
+                                  else 1000 # forçar grande distância se o companheiro de equipe não existir, ou suas informações de estado não forem recentes (360 ms), ou se ele tiver caído
                                   for p in w.teammates ]
 
-        # list of squared distances between opponents and slow ball (sq distance is set to 1000 in some conditions)
-        opponents_ball_sq_dist = [np.sum((p.state_abs_pos[:2] - slow_ball_pos) ** 2)  # squared distance between teammate and ball
+        # lista de distâncias quadradas entre oponentes e bola lenta (a distância quadrada é definida como 1000 em algumas condições)
+        opponents_ball_sq_dist = [np.sum((p.state_abs_pos[:2] - slow_ball_pos) ** 2)  # distância quadrada entre o companheiro de equipe e a bola
                                   if p.state_last_update != 0 and w.time_local_ms - p.state_last_update <= 360 and not p.state_fallen
-                                  else 1000 # force large distance if opponent does not exist, or its state info is not recent (360 ms), or it has fallen
+                                  else 1000 # forçar grande distância se o oponente não existir, ou se suas informações de estado não forem recentes (360 ms), ou se ele tiver caído
                                   for p in w.opponents ]
 
         min_teammate_ball_sq_dist = min(teammates_ball_sq_dist)
-        self.min_teammate_ball_dist = math.sqrt(min_teammate_ball_sq_dist)   # distance between ball and closest teammate
-        self.min_opponent_ball_dist = math.sqrt(min(opponents_ball_sq_dist)) # distance between ball and closest opponent
+        self.min_teammate_ball_dist = math.sqrt(min_teammate_ball_sq_dist)   # distância entre a bola e o companheiro de equipe mais próximo
+        self.min_opponent_ball_dist = math.sqrt(min(opponents_ball_sq_dist)) #distância entre a bola e o oponente mais próximo
 
         active_player_unum = teammates_ball_sq_dist.index(min_teammate_ball_sq_dist) + 1
 
 
-        #--------------------------------------- 2. Decide action
+        #--------------------------------------- 2.Decida a ação
 
 
 
@@ -171,61 +171,61 @@ class Agent(Base_Agent):
         elif PM_GROUP == w.MG_ACTIVE_BEAM:
             self.beam()
         elif PM_GROUP == w.MG_PASSIVE_BEAM:
-            self.beam(True) # avoid center circle
+            self.beam(True) # evite o círculo central
         elif self.state == 1 or (behavior.is_ready("Get_Up") and self.fat_proxy_cmd is None):
-            self.state = 0 if behavior.execute("Get_Up") else 1 # return to normal state if get up behavior has finished
+            self.state = 0 if behavior.execute("Get_Up") else 1 # retornar ao estado normal se o comportamento de levantar tiver terminado
         elif PM == w.M_OUR_KICKOFF:
             if r.unum == 9:
-                self.kick(120,9) # no need to change the state when PM is not Play On
+                self.kick(120,9) # não há necessidade de alterar o estado quando o PM não estiver em Play On
             else:
-                self.move(self.init_pos, orientation=ball_dir) # walk in place
+                self.move(self.init_pos, orientation=ball_dir) # andar no lugar
         elif PM == w.M_THEIR_KICKOFF:
-            self.move(self.init_pos, orientation=ball_dir) # walk in place
-        elif active_player_unum != r.unum: # I am not the active player
-            if r.unum == 1: # I am the goalkeeper
-                self.move(self.init_pos, orientation=ball_dir) # walk in place 
+            self.move(self.init_pos, orientation=ball_dir) # andar no lugar
+        elif active_player_unum != r.unum: #Eu não sou o jogador ativo
+            if r.unum == 1: #Eu sou o goleiro
+                self.move(self.init_pos, orientation=ball_dir) # andar no lugar
             else:
-                # compute basic formation position based on ball position
+                # calcular a posição básica da formação com base na posição da bola
                 new_x = max(0.5,(ball_2d[0]+15)/15) * (self.init_pos[0]+15) - 15
                 if self.min_teammate_ball_dist < self.min_opponent_ball_dist:
-                    new_x = min(new_x + 3.5, 13) # advance if team has possession
+                    new_x = min(new_x + 3.5, 13) # avançar se a equipe tiver posse de bola
                 self.move((new_x,self.init_pos[1]), orientation=ball_dir, priority_unums=[active_player_unum])
 
-        else: # I am the active player
-            path_draw_options(enable_obstacles=True, enable_path=True, use_team_drawing_channel=True) # enable path drawings for active player (ignored if self.enable_draw is False)
+        else: # Eu sou o jogador ativo
+            path_draw_options(enable_obstacles=True, enable_path=True, use_team_drawing_channel=True) # habilitar desenhos de caminho para o jogador ativo (ignorado se self.enable_draw for False)
             enable_pass_command = (PM == w.M_PLAY_ON and ball_2d[0]<6)
 
-            if r.unum == 1 and PM_GROUP == w.MG_THEIR_KICK: # goalkeeper during their kick
-                self.move(self.init_pos, orientation=ball_dir) # walk in place 
+            if r.unum == 1 and PM_GROUP == w.MG_THEIR_KICK: # goleiro durante seu chute
+                self.move(self.init_pos, orientation=ball_dir) # andar no lugar
             if PM == w.M_OUR_CORNER_KICK:
-                self.kick( -np.sign(ball_2d[1])*95, 5.5) # kick the ball into the space in front of the opponent's goal
-                # no need to change the state when PM is not Play On
-            elif self.min_opponent_ball_dist + 0.5 < self.min_teammate_ball_dist: # defend if opponent is considerably closer to the ball
-                if self.state == 2: # commit to kick while aborting
+                self.kick( -np.sign(ball_2d[1])*95, 5.5) # chutar a bola para o espaço em frente ao gol do adversário
+                # não há necessidade de alterar o estado quando o PM não estiver em Play On
+            elif self.min_opponent_ball_dist + 0.5 < self.min_teammate_ball_dist: # defender se o adversário estiver consideravelmente mais perto da bola
+                if self.state == 2: # comprometer-se a chutar enquanto aborta
                     self.state = 0 if self.kick(abort=True) else 2
-                else: # move towards ball, but position myself between ball and our goal
+                else: #mover-me em direção à bola, mas posicionar-me entre a bola e o nosso objetivo
                     self.move(slow_ball_pos + M.normalize_vec((-16,0) - slow_ball_pos) * 0.2, is_aggressive=True)
             else:
                 self.state = 0 if self.kick(goal_dir,9,False,enable_pass_command) else 2
 
-            path_draw_options(enable_obstacles=False, enable_path=False) # disable path drawings
+            path_draw_options(enable_obstacles=False, enable_path=False) # desativar desenhos de caminho
 
-        #--------------------------------------- 3. Broadcast
+        #--------------------------------------- 3. Transmissão
         self.radio.broadcast()
 
-        #--------------------------------------- 4. Send to server
-        if self.fat_proxy_cmd is None: # normal behavior
+        #--------------------------------------- 4.Enviar para o servidor
+        if self.fat_proxy_cmd is None: # comportamento normal
             self.scom.commit_and_send( r.get_command() )
-        else: # fat proxy behavior
+        else: # comportamento de proxy gordo
             self.scom.commit_and_send( self.fat_proxy_cmd.encode() ) 
             self.fat_proxy_cmd = ""
 
-        #---------------------- annotations for debugging
+        #----------------------anotações para depuração
         if self.enable_draw: 
             d = w.draw
             if active_player_unum == r.unum:
-                d.point(slow_ball_pos, 3, d.Color.pink, "status", False) # predicted future 2D ball position when ball speed <= 0.5 m/s
-                d.point(w.ball_2d_pred_pos[-1], 5, d.Color.pink, "status", False) # last ball prediction
+                d.point(slow_ball_pos, 3, d.Color.pink, "status", False) # posição futura prevista da bola 2D quando a velocidade da bola <= 0,5 m/s
+                d.point(w.ball_2d_pred_pos[-1], 5, d.Color.pink, "status", False) # previsão da última bola
                 d.annotation((*my_head_pos_2d, 0.6), "I've got it!" , d.Color.yellow, "status")
             else:
                 d.clear("status")
@@ -233,7 +233,7 @@ class Agent(Base_Agent):
 
 
 
-    #--------------------------------------- Fat proxy auxiliary methods
+    #--------------------------------------- Métodos auxiliares de proxy gordo
 
 
     def fat_proxy_kick(self):
@@ -243,12 +243,12 @@ class Agent(Base_Agent):
         my_head_pos_2d = r.loc_head_position[:2]
 
         if np.linalg.norm(ball_2d - my_head_pos_2d) < 0.25:
-            # fat proxy kick arguments: power [0,10]; relative horizontal angle [-180,180]; vertical angle [0,70]
+            #argumentos de chute de proxy gordo: potência [0,10]; ângulo horizontal relativo [-180,180]; ângulo vertical [0,70]
             self.fat_proxy_cmd += f"(proxy kick 10 {M.normalize_deg( self.kick_direction  - r.imu_torso_orientation ):.2f} 20)" 
-            self.fat_proxy_walk = np.zeros(3) # reset fat proxy walk
+            self.fat_proxy_walk = np.zeros(3) # redefinir caminhada de proxy gordo
             return True
         else:
-            self.fat_proxy_move(ball_2d-(-0.1,0), None, True) # ignore obstacles
+            self.fat_proxy_move(ball_2d-(-0.1,0), None, True) # ignorar obstáculos
             return False
 
 

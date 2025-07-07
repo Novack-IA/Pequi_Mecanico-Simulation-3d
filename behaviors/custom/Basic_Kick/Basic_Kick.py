@@ -19,7 +19,7 @@ class Basic_Kick():
         self.ball_x_center = (self.ball_x_limits[0] + self.ball_x_limits[1])/2
         self.ball_y_center = (self.ball_y_limits[0] + self.ball_y_limits[1])/2
       
-    def execute(self,reset, direction, abort=False) -> bool: # You can add more arguments 
+    def execute(self,reset, direction, abort=False) -> bool: # Você pode adicionar mais argumentos
         '''
         Parameters
         ----------
@@ -42,33 +42,33 @@ class Basic_Kick():
             self.reset_time = t
 
         if self.phase == 0: 
-            biased_dir = M.normalize_deg(direction + self.bias_dir) # add bias to rectify direction
-            ang_diff = abs(M.normalize_deg( biased_dir - r.loc_torso_orientation )) # the reset was learned with loc, not IMU
+            biased_dir = M.normalize_deg(direction + self.bias_dir) # adicionar viés para retificar a direção
+            ang_diff = abs(M.normalize_deg( biased_dir - r.loc_torso_orientation )) # a reinicialização foi aprendida com loc, não com IMU
 
             next_pos, next_ori, dist_to_final_target = self.path_manager.get_path_to_ball(
                 x_ori=biased_dir, x_dev=-self.ball_x_center, y_dev=-self.ball_y_center, torso_ori=biased_dir)
             
-            if (w.ball_last_seen > t - w.VISUALSTEP_MS and ang_diff < 5 and       # ball is visible & aligned
-                self.ball_x_limits[0] < b[0] < self.ball_x_limits[1] and          # ball is in kick area (x)
-                self.ball_y_limits[0] < b[1] < self.ball_y_limits[1] and          # ball is in kick area (y)
-                t - w.ball_abs_pos_last_update < 100 and                          # ball absolute location is recent
-                dist_to_final_target < 0.03 and                                   # if absolute ball position is updated
-                not gait.state_is_left_active and gait.state_current_ts == 2 and  # walk gait phase is adequate
-                t - self.reset_time > 500): # to avoid kicking immediately without preparation & stability
+            if (w.ball_last_seen > t - w.VISUALSTEP_MS and ang_diff < 5 and       # a bola está visível e alinhada
+                self.ball_x_limits[0] < b[0] < self.ball_x_limits[1] and          # a bola está na área de chute (x)
+                self.ball_y_limits[0] < b[1] < self.ball_y_limits[1] and          # a bola está na área de chute (y)
+                t - w.ball_abs_pos_last_update < 100 and                          # a localização absoluta da bola é recente
+                dist_to_final_target < 0.03 and                                   # se a posição absoluta da bola for atualizada
+                not gait.state_is_left_active and gait.state_current_ts == 2 and  # a fase da marcha é adequada
+                t - self.reset_time > 500): # para evitar chutar imediatamente sem preparação e estabilidade
 
                 self.phase += 1
 
                 return self.behavior.execute_sub_behavior("Kick_Motion", True)
             else:
                 dist = max(0.07, dist_to_final_target)
-                reset_walk = reset and self.behavior.previous_behavior != "Walk" # reset walk if it wasn't the previous behavior
-                self.behavior.execute_sub_behavior("Walk", reset_walk, next_pos, True, next_ori, True, dist) # target, is_target_abs, ori, is_ori_abs, distance
-                return abort # abort only if self.phase == 0
+                reset_walk = reset and self.behavior.previous_behavior != "Walk" # redefinir caminhada se não era o comportamento anterior
+                self.behavior.execute_sub_behavior("Walk", reset_walk, next_pos, True, next_ori, True, dist) #alvo, is_target_abs, ori, is_ori_abs, distância
+                return abort # abortar somente se self.phase == 0
 
-        else: # define kick parameters and execute 
+        else: # definir parâmetros de chute e executar
             return self.behavior.execute_sub_behavior("Kick_Motion", False)
 
       
-    def is_ready(self) -> any: # You can add more arguments 
+    def is_ready(self) -> any: # Você pode adicionar mais argumentos
         ''' Returns True if this behavior is ready to start/continue under current game/robot conditions '''
         return True

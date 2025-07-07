@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Call this script from any directory
+# Chame este script de qualquer diretório
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
-# cd to main folder
+# cd para pasta principal
 cd "${SCRIPT_DIR}/.."
 
 rm -rf ./bundle/build
@@ -11,7 +11,7 @@ rm -rf ./bundle/dist
 
 onefile="--onefile"
 
-# bundle app, dependencies, and data files into a single executable
+#agrupe aplicativos, dependências e arquivos de dados em um único executável
 pyinstaller \
 --onefile \
 --add-binary '/usr/lib/x86_64-linux-gnu/libm.so.6:lib/' \

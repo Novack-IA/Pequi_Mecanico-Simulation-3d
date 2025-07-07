@@ -27,3 +27,5 @@ profile
 # ignore bundle folder but not bundle script
 /bundle/*
 !/bundle/bundle.sh
+
+/venv*

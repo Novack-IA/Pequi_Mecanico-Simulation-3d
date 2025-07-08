@@ -130,6 +130,7 @@ class Train(Train_Base):
         # *RV -> Recommended value for more complex environments
         folder_name = f'Fall_R{self.robot_type}'
         model_path = f'./scripts/gyms/logs/{folder_name}/'
+        log_folder = f'./scripts/gyms/logs'
 
         print("Model path:", model_path)
 
@@ -146,9 +147,9 @@ class Train(Train_Base):
 
         try:
             if "model_file" in args: # retrain
-                model = PPO.load( args["model_file"], env=env, n_envs=n_envs, n_steps=n_steps_per_env, batch_size=minibatch_size, learning_rate=learning_rate )
+                model = PPO.load( args["model_file"], env=env, n_envs=n_envs, n_steps=n_steps_per_env, batch_size=minibatch_size, learning_rate=learning_rate, device='cpu', tensorboard_log=log_folder)
             else: # train new model
-                model = PPO( "MlpPolicy", env=env, verbose=1, n_steps=n_steps_per_env, batch_size=minibatch_size, learning_rate=learning_rate )
+                model = PPO( "MlpPolicy", env=env, verbose=1, n_steps=n_steps_per_env, batch_size=minibatch_size, learning_rate=learning_rate, device='cpu', tensorboard_log=log_folder)
 
             model_path = self.learn_model( model, total_steps, model_path, eval_env=eval_env, eval_freq=n_steps_per_env*10, save_freq=n_steps_per_env*20, backup_env_file=__file__ )
         except KeyboardInterrupt:

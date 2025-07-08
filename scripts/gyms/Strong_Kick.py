@@ -21,7 +21,7 @@ em direção ao gol a partir de uma posição preparada.
 '''
 
 class Strong_Kick_Gym(gym.Env):
-    def _init_(self, ip, server_p, monitor_p, r_type, enable_draw) -> None:
+    def __init__(self, ip, server_p, monitor_p, r_type, enable_draw) -> None:
         if r_type != 4:
             print("AVISO: Este ambiente de treino é otimizado para o Robô Tipo 4, que possui articulações nos dedos.")
 
@@ -121,8 +121,8 @@ class Strong_Kick_Gym(gym.Env):
         self.player.terminate()
 
 class Train(Train_Base):
-    def _init_(self, script) -> None:
-        super()._init_(script)
+    def __init__(self, script) -> None:
+        super().__init__(script)
 
     def train(self, args):
         n_envs = min(12, os.cpu_count())
@@ -148,7 +148,7 @@ class Train(Train_Base):
             else:
                 model = PPO("MlpPolicy", env=env, verbose=1, n_steps=n_steps_per_env, batch_size=64, learning_rate=3e-4, device="cpu")
             
-            self.learn_model(model, total_steps, model_path, eval_env=eval_env, eval_freq=20480, save_freq=204800, backup_env_file=_file_)
+            self.learn_model(model, total_steps, model_path, eval_env=eval_env, eval_freq=20480, save_freq=204800, backup_env_file=__file__)
         except KeyboardInterrupt:
             sleep(1)
             print("\nCtrl+C pressionado, abortando...")

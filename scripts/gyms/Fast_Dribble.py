@@ -1,5 +1,3 @@
-# Salve este arquivo como: scripts/gyms/Fast_Dribble_Gym.py
-
 from agent.Base_AgentCEIA import Base_Agent as Agent
 from world.commons.Draw import Draw
 from stable_baselines3 import PPO

@@ -122,7 +122,7 @@ class Fast_Dribble_Gym(gym.Env):
         if r.loc_head_z < 0.3: # Penalidade por cair
             reward = -20 
             terminal = True
-        elif ball_dist > 0.6: # Penalidade por perder a bola
+        elif ball_dist > 1: # Penalidade por perder a bola
             reward = -10
             terminal = False
         elif self.step_counter > 500: # Fim do episódio por tempo

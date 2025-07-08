@@ -119,10 +119,10 @@ class Fast_Dribble_Gym(gym.Env):
             reward += ball_advancement * 15.0
             
         # 3. Penalidades
-        if r.loc_head_z < 0.3: # Penalidade por cair
+        if r.loc_head_z <= 0.4: # Penalidade por cair
             reward = -20 
             terminal = True
-        elif ball_dist > 1: # Penalidade por perder a bola
+        elif ball_dist > 0.4: # Penalidade por perder a bola
             reward = -10
             terminal = False
         elif self.step_counter > 500: # Fim do episódio por tempo
@@ -145,7 +145,7 @@ class Train(Train_Base):
     def train(self, args):
         n_envs = min(12, os.cpu_count())
         n_steps_per_env = 1024
-        total_steps = 20_000_000
+        total_steps = 50_000_000
         folder_name = f'Fast_Dribble_Gym_R{self.robot_type}'
         model_path = f'./scripts/gyms/logs/{folder_name}/'
 

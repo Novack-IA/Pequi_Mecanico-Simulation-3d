@@ -84,22 +84,26 @@ class Strong_Kick_Gym(gym.Env):
 		self.step_counter = 0
 		r = self.player.world.robot
 		w = self.player.world
-		
-		# --- Reset Robusto e com Aleatoriedade ---
-		# O robô agora começa em pé, mas sem a "muleta" da animação de chute.
-		self.player.scom.unofficial_beam((13.8, 0, r.beam_height), 180)
 
-		# Adiciona uma pequena aleatoriedade na posição inicial da bola.
-		# Isso força o robô a aprender uma política mais geral.
+		# --- Reset Robusto (inspirado no Fall.py) para garantir estabilidade ---
+
+		# 1. Estabiliza o robô flutuando no ar primeiro, para zerar qualquer momento residual.
+		for _ in range(25):
+			self.player.scom.unofficial_beam((13.8, 0, 0.50), 180) # Posição alta
+			self.player.behavior.execute("Zero")
+			self.sync()
+
+		# 2. Posiciona o robô no chão (na altura correta dos pés).
+		self.player.scom.unofficial_beam((13.8, 0, r.beam_height), 180)
+		
+		# Adiciona a aleatoriedade na posição da bola.
 		ball_x = 14.0 + np.random.uniform(-0.05, 0.05)
 		ball_y = -0.09 + np.random.uniform(-0.03, 0.03)
-		
-		# CORREÇÃO APLICADA AQUI: w.ball_radius foi substituído por 0.042
 		self.player.scom.unofficial_move_ball((ball_x, ball_y, 0.042))
-		
-		# Estabiliza o robô em uma posição neutra ("Zero")
+
+		# 3. Estabiliza o robô no chão por alguns passos.
 		for _ in range(10):
-			self.player.behavior.execute("Zero")
+			self.player.behavior.execute("Zero_Bent_Knees") # Usar joelhos flexionados ajuda na estabilidade inicial
 			self.sync()
 
 		return self.observe()

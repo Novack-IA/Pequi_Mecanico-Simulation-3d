@@ -116,7 +116,7 @@ class Fast_Dribble_Gym(gym.Env):
         
         # Incentiva a bola a avançar junto com o robô
         if ball_advancement > 0:
-            reward += ball_advancement * 10.0
+            reward += ball_advancement * 15.0
             
         # 3. Penalidades
         if r.loc_head_z < 0.3: # Penalidade por cair
@@ -124,7 +124,7 @@ class Fast_Dribble_Gym(gym.Env):
             terminal = True
         elif ball_dist > 0.6: # Penalidade por perder a bola
             reward = -10
-            terminal = True
+            terminal = False
         elif self.step_counter > 500: # Fim do episódio por tempo
             terminal = True
         else:

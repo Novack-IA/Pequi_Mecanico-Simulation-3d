@@ -42,12 +42,12 @@
     {
         "number": "9",
         "initial_position": [-1, -2.5],
-        "robot_type": 3
+        "robot_type": 4
     },
     {
         "number": "10",
         "initial_position": [-1, 2.5],
-        "robot_type": 3
+        "robot_type": 4
     },
     {
         "number": "11",

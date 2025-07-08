@@ -14,7 +14,7 @@ class Agent(Base_Agent):
             team_formation = json.load(f)
 
         # Finds the correct robot in the config
-        robot_config = next((robot for robot in team_formation if robot['number'] == unum), None)
+        robot_config = next((robot for robot in team_formation if robot['number'] == str(unum)), None)
         if not robot_config:
             raise ValueError(f"Configuration of the {unum} player not found.")
 

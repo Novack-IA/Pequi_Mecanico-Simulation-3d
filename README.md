@@ -19,19 +19,19 @@ Siga estes três passos para configurar seu ambiente.
 ### 1. Pré-requisitos do Sistema
 
 * **Compilador C++ e Make:** Necessário para compilar os módulos C++.
-    '''bash
+    ```bash
     # Em sistemas Debian/Ubuntu
     sudo apt-get install build-essential
-    '''
+    ```
 * **Java 17 (ou superior):** Requerido para executar o RoboViz.
 
 ### 2. Servidor e Visualizador
 
 * **SimSpark (Servidor):**
-    '''bash
+    ```bash
     sudo apt-get update
     sudo apt-get install simspark
-    '''
+    ```
 * **RoboViz (Visualizador):**
     1.  Faça o download dos binários pré-compilados na [página de releases do RoboViz](https://github.com/magmaOffenburg/RoboViz/releases).
     2.  Descompacte o arquivo em um local de sua preferência.
@@ -39,14 +39,14 @@ Siga estes três passos para configurar seu ambiente.
 ### 3. Ambiente Python e Dependências
 
 1.  **Crie e ative um ambiente virtual:**
-    '''bash
+    ```bash
     python3 -m venv venv
     source venv/bin/activate
-    '''
+    ```
 2.  **Instale as bibliotecas Python:**
-    '''bash
+    ```bash
     pip install -r requirements.txt
-    '''
+    ```
 3.  **Compilação dos Módulos C++:**
     Na primeira vez que você executar um agente (ex: `./start.sh`), o projeto tentará compilar automaticamente os módulos C++ localizados na pasta `/cpp`. O script `scripts/commons/Script.py` gerencia esse processo. Se a compilação falhar, verifique se você tem os pré-requisitos do sistema instalados.
 
@@ -56,40 +56,40 @@ Para iniciar uma partida, você precisa executar o servidor, o visualizador e os
 
 **Passo 1: Iniciar o Servidor SimSpark**
 Abra um terminal e inicie o servidor de simulação.
-'''bash
+```bash
 rcssserver3d
-'''
+```
 
 **Passo 2: Iniciar o RoboViz**
 Em um segundo terminal, execute o visualizador.
-'''bash
+```bash
 # Navegue até a pasta onde você descompactou o RoboViz
 ./roboviz.sh
-'''
+```
 
 **Passo 3: Iniciar os Agentes**
 Em um terceiro terminal, use os scripts `*.sh` para iniciar os jogadores em diferentes cenários.
 
 * **Partida Completa (11 vs 11):** Inicia um time de 11 jogadores.
-    '''bash
+    ```bash
     ./start.sh
-    '''
+    ```
 
 * **Disputa de Pênaltis:** Inicia um goleiro e um batedor para treino de pênaltis.
-    '''bash
+    ```bash
     ./start_penalty.sh
-    '''
+    ```
 
 * **Modo de Depuração:** Inicia os jogadores com logs detalhados e desenhos de depuração ativados no RoboViz.
-    '''bash
+    ```bash
     ./start_debug.sh
-    '''
+    ```
 
 **Passo 4: Encerrar a Simulação**
 Para parar todos os processos dos agentes de uma vez:
-'''bash
+```bash
 ./kill.sh
-'''
+```
 
 ## Argumentos de Linha de Comando
 
@@ -114,9 +114,9 @@ Execute `Run_Utils.py` para acessar um menu interativo com diversas ferramentas 
 * Testes do planejador de caminho.
 * Configurações do servidor.
 
-'''bash
+```bash
 python3 Run_Utils.py
-'''
+```
 
 ### Treinamento com Aprendizado por Reforço
 O projeto está pronto para pesquisa em RL. A pasta `scripts/gyms` contém ambientes Gym para treinar diferentes habilidades.

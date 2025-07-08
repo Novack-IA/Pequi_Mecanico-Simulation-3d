@@ -39,6 +39,7 @@ class Strong_Kick_Gym(gym.Env):
 		self.action_space = gym.spaces.Box(low=-1, high=1, shape=(act_size,), dtype=np.float32) # Ações normalizadas entre -1 e 1
 
 		self.kicking_foot = 'l' # Define o pé de chute ('l' ou 'r')
+		self.initial_ball_pos_x = 0.0
 
 	def observe(self):
 		r = self.player.world.robot
@@ -88,18 +89,21 @@ class Strong_Kick_Gym(gym.Env):
 		# --- Reset Robusto (inspirado no Fall.py) para garantir estabilidade ---
 
 		# 1. Estabiliza o robô flutuando no ar primeiro, para zerar qualquer momento residual.
+		# CORREÇÃO: Orientação mudada de 180 para 0.
 		for _ in range(25):
-			self.player.scom.unofficial_beam((13.8, 0, 0.50), 180) # Posição alta
+			self.player.scom.unofficial_beam((13.8, 0, 0.50), 0) # Posição alta, virado para frente
 			self.player.behavior.execute("Zero")
 			self.sync()
 
 		# 2. Posiciona o robô no chão (na altura correta dos pés).
-		self.player.scom.unofficial_beam((13.8, 0, r.beam_height), 180)
+		# CORREÇÃO: Orientação mudada de 180 para 0.
+		self.player.scom.unofficial_beam((13.8, 0, r.beam_height), 0) # Posição no chão, virado para frente
 		
 		# Adiciona a aleatoriedade na posição da bola.
 		ball_x = 14.0 + np.random.uniform(-0.05, 0.05)
 		ball_y = -0.09 + np.random.uniform(-0.03, 0.03)
 		self.player.scom.unofficial_move_ball((ball_x, ball_y, 0.042))
+		self.initial_ball_pos_x = ball_x
 
 		# 3. Estabiliza o robô no chão por alguns passos.
 		for _ in range(10):
@@ -112,46 +116,45 @@ class Strong_Kick_Gym(gym.Env):
 		r = self.player.world.robot
 		w = self.player.world
 		
-		# --- Ação Relativa (Delta Action) para Movimentos Suaves ---
-		# A IA não define a posição final, mas sim uma *mudança* a partir da posição atual.
-		# Isso evita movimentos bruscos e desequilíbrios.
+		# Ação Relativa (Delta Action) para Movimentos Suaves
 		current_positions = r.joints_position[2:14]
-		# Uma escala menor para a ação resulta em movimentos mais finos e estáveis.
-		new_target_positions = current_positions + action * 5.0 # Escala reduzida de 30 para 5
+		new_target_positions = current_positions + action * 3.0
 		r.set_joints_target_position_direct(slice(2, 14), new_target_positions, harmonize=False)
 
 		self.sync()
 		self.step_counter += 1
 		
 		obs = self.observe()
-		
-		# --- Função de Recompensa Modelada (Reward Shaping) ---
-		# Feedback contínuo para guiar o agente de forma estável.
-
-		# Recompensa por se aproximar da bola com o pé correto
-		dist_foot_ball = obs[33]
-		reward_proximity = (1.0 / (1.0 + dist_foot_ball**2)) * 0.1 # Recompensa pequena, mas constante
-
-		# Recompensa pela velocidade da bola (a principal, após o chute)
-		ball_vel = w.get_ball_abs_vel(1)
-		reward_kick_speed = max(0, ball_vel[0]) # Apenas recompensa velocidade para frente
-
-		# Penalidade por desvio (incentiva precisão)
-		penalty_deviation = abs(ball_vel[1]) * 0.5
-
-		# Combina as recompensas
-		reward = reward_proximity + reward_kick_speed - penalty_deviation
-		
-		# --- Condições de Fim de Episódio com Recompensas Menos "Explosivas" ---
+		reward = 0  # Recompensa é zero durante o episódio
 		terminal = False
-		if r.loc_head_z < 0.3: # Penalidade por cair
-			reward = -1.0 # Penalidade pequena, mas clara
+
+		# Verifica as condições de fim de episódio
+		if r.loc_head_z < 0.3:
 			terminal = True
-		elif w.ball_abs_pos[0] > 15.05 and abs(w.ball_abs_pos[1]) < 1.05: # Gol
-			reward = 5.0 # Bônus, mas não tão grande a ponto de desestabilizar
+		elif self.step_counter > 200:
 			terminal = True
-		elif self.step_counter > 200: # Timeout
+		# Condição de término se a bola parar ou for para trás após o chute inicial
+		elif w.ball_abs_pos[0] > self.initial_ball_pos_x + 0.1 and np.linalg.norm(w.get_ball_abs_vel(1)) < 0.05:
 			terminal = True
+
+		# --- CÁLCULO DA RECOMPENSA FINAL ---
+		if terminal:
+			final_ball_pos = w.ball_abs_pos
+			
+			# Penalidade se o robô simplesmente caiu sem chutar
+			if r.loc_head_z < 0.3 and final_ball_pos[0] < self.initial_ball_pos_x + 0.2:
+				reward = -1.0
+			else:
+				# Recompensa principal: deslocamento no eixo X
+				reward = final_ball_pos[0] - self.initial_ball_pos_x
+				
+				# Penalidade se a bola sair pela lateral (campo tem ~11m de largura)
+				if abs(final_ball_pos[1]) > 11.0:
+					reward = 0 # Zera a recompensa se a bola saiu
+
+				# Bônus se for gol
+				if final_ball_pos[0] > 15.05 and abs(final_ball_pos[1]) < 1.05:
+					reward += 5.0 # Adiciona um bônus ao deslocamento
 
 		return obs, reward, terminal, {}
 	

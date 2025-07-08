@@ -38,7 +38,7 @@ Siga estes três passos para configurar seu ambiente.
 
 ### 3. Ambiente Python e Dependências
 
-1.  **Crie e ative um ambiente virtual:**
+1.  **Crie e ative um ambiente virtual (altamente recomendado):**
     ```bash
     python3 -m venv venv
     source venv/bin/activate
@@ -52,7 +52,7 @@ Siga estes três passos para configurar seu ambiente.
 
 ## Como Rodar a Simulação
 
-Para iniciar uma partida, você precisa executar o servidor, o visualizador e os agentes, cada um em seu próprio terminal.
+Para rodar uma partida, você precisa iniciar três componentes em terminais separados: o **servidor**, o **visualizador** e os **agentes** (jogadores).
 
 **Passo 1: Iniciar o Servidor SimSpark**
 Abra um terminal e inicie o servidor de simulação.
@@ -80,51 +80,59 @@ Em um terceiro terminal, use os scripts `*.sh` para iniciar os jogadores em dife
     ./start_penalty.sh
     ```
 
-* **Modo de Depuração:** Inicia os jogadores com logs detalhados e desenhos de depuração ativados no RoboViz.
+* **Modo de Depuração:** Inicia os jogadores com logs e desenhos de depuração ativados no RoboViz.
     ```bash
     ./start_debug.sh
     ```
 
 **Passo 4: Encerrar a Simulação**
-Para parar todos os processos dos agentes de uma vez:
+Para parar todos os processos dos agentes de uma vez, use o script `kill.sh`.
 ```bash
 ./kill.sh
 ```
 
-## Argumentos de Linha de Comando
+## Treinamento de Modelos (Aprendizado por Reforço)
 
-Você pode personalizar a execução dos agentes usando argumentos. O script `Run_Player.py` aceita as seguintes flags:
+O framework permite treinar novos comportamentos usando aprendizado por reforço. Para iniciar o processo, use o menu de utilitários.
 
-* `-i <IP>`: Endereço do servidor (padrão: `localhost`).
-* `-p <PORTA>`: Porta do servidor para os agentes (padrão: `3100`).
-* `-m <PORTA>`: Porta do monitor (padrão: `3200`).
-* `-t <NOME>`: Nome do time (padrão: `FCPortugal`).
-* `-u <NUM>`: Número do uniforme do jogador (1-11).
-* `-r <TIPO>`: Tipo do robô (0-4), definindo suas características físicas.
-* `-P <0|1>`: Ativa o modo de disputa de pênaltis.
-* `-D <0|1>`: Ativa o modo de depuração.
-* `-F <0|1>`: Ativa o modo `magmaFatProxy`.
+1.  **Execute o Menu de Utilitários:**
+    ```bash
+    python3 Run_Utils.py
+    ```
+2.  **Selecione a opção "Gyms"** e, em seguida, escolha o ambiente que deseja treinar ou testar.
 
-## Desenvolvimento e Pesquisa
+### Configuração do Treinamento
+Os principais parâmetros de treinamento são definidos diretamente no método `train` da classe `Train` de cada ambiente (ex: `scripts/gyms/Fast_Dribble.py`).
 
-### Utilitários
+* **Parâmetros Editáveis:**
+    * `n_envs`: Número de ambientes paralelos para treinamento.
+    * `n_steps_per_env`: Número de passos por ambiente antes de cada atualização do modelo.
+    * `total_steps`: Número total de passos de simulação para o treinamento.
+    * `learning_rate`: A taxa de aprendizado do otimizador.
+    * `folder_name`: Nome da pasta onde os logs e modelos serão salvos.
+
+### Configuração das Portas para Treinamento
+Para evitar conflitos durante o treinamento com múltiplos ambientes (`n_envs > 1`), o sistema gerencia as portas do servidor e do monitor automaticamente.
+
+* **Porta Base dos Agentes (`-p`):** A porta inicial para os agentes é definida pelo argumento `-p` (padrão: 3100). Cada novo ambiente de treinamento usará uma porta incrementada: `porta_base`, `porta_base + 1`, `porta_base + 2`, e assim por diante.
+* **Porta Base do Monitor (`-m`):** Para evitar conflitos com a porta do agente, a porta base do monitor é deslocada por um valor fixo (1000). Se a porta `-m` for 3200, os ambientes de treino usarão `3200 + 1000`, `3200 + 1001`, etc.
+
+Você pode alterar as portas base ao iniciar o treinamento através de `Run_Utils.py`, por exemplo:
+```bash
+# Inicia o treinamento com a porta do agente base em 4100 e do monitor em 4200
+python3 Run_Utils.py -p 4100 -m 4200
+```
+O sistema então gerenciará as portas incrementais a partir desses novos valores base.
+
+## Desenvolvimento e Utilitários
+
+### Scripts de Utilitários
 Execute `Run_Utils.py` para acessar um menu interativo com diversas ferramentas de desenvolvimento, incluindo:
 * Controle individual de juntas.
 * Demonstrações de cinemática direta e inversa.
 * Testes do planejador de caminho.
-* Configurações do servidor.
+* Configurações do servidor SimSpark.
 
-```bash
-python3 Run_Utils.py
-```
-
-### Treinamento com Aprendizado por Reforço
-O projeto está pronto para pesquisa em RL. A pasta `scripts/gyms` contém ambientes Gym para treinar diferentes habilidades.
-
-* Para **treinar um novo modelo** ou **testar um existente**, selecione a opção `Gyms` no menu de `Run_Utils.py`.
-* A classe `Train` dentro de cada arquivo de ambiente gerencia o processo de treinamento e teste usando `Stable Baselines3`.
-
-## Configuração
-
+### Configuração Geral
 * **Formação do Time:** As posições iniciais e os tipos de robô para cada jogador são definidos em `config/formation.json`.
-* **Configurações do Servidor:** Use o utilitário `Server` (`Run_Utils.py` -> `Server`) para modificar facilmente as configurações do SimSpark, como modo síncrono, tempo real e ruído, sem precisar editar os arquivos de configuração manualmente.
+* **Argumentos de Linha de Comando:** O script `scripts/commons/Script.py` gerencia a leitura de argumentos da linha de comando e de um arquivo `config.json`, permitindo uma configuração flexível.

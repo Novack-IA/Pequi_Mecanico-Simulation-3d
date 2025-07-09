@@ -29,3 +29,5 @@ profile
 !/bundle/bundle.sh
 
 /venv*
+
+*.tar.gz

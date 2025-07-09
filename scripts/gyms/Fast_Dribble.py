@@ -14,21 +14,16 @@ import numpy as np
 from math_ops.Math_Ops import Math_Ops as M
 
 '''
-Objetivo:
-Treinar o Robô Tipo 4 para um drible rápido, estável e eficiente em direção ao gol.
-Esta versão implementa uma arquitetura de aprendizado baseada em pesquisa de ponta,
-focando em três pilares:
-1.  **Função de Recompensa Sofisticada:** Uma política de recompensa multi-objetivo que
-    equilibra estabilidade, direcionamento ao gol, e eficiência de movimento.
-2.  **Heurísticas de Aprendizagem Robustas:** Incorpora suavização de ações e
-    randomização de domínio para criar uma política mais generalizável e suave.
-3.  **Pipeline de Treinamento de Alta Performance:** Otimizado para máxima coleta de
-    amostras através de paralelização massiva, a estratégia mais eficaz para
-    acelerar o treinamento em simuladores baseados em CPU como o simspark.
+Objetivo Revisado:
+Treinar o Robô Tipo 4 para executar um chute FORTE e PRECISO, aprendendo
+o movimento completo de aproximação e chute de forma estável.
+----------
+- class Strong_Kick_Gym: implementa um ginásio personalizado do OpenAI.
+- class Train: implementa os algoritmos para treinar um novo modelo.
 '''
 
 # =======================================================================================
-# MÓDULO DE CÁLCULO DE RECOMPENSA
+# MÓDULO DE CÁLCULO DE RECOMPENSA (REVISADO)
 # =======================================================================================
 class RewardCalculator:
     """
@@ -39,7 +34,7 @@ class RewardCalculator:
     def __init__(self, weights: dict):
         self.weights = weights
         self.prev_ball_to_goal_dist = None
-        # self.prev_joint_vel is no longer needed
+        self.prev_ball_dist = None
 
     def calculate_reward(self, env, action: np.ndarray, prev_action: np.ndarray):
         """Calcula a recompensa total como uma soma ponderada de vários componentes."""
@@ -51,78 +46,72 @@ class RewardCalculator:
 
         stability_reward = self._calculate_stability_reward(r)
         goal_directed_reward = self._calculate_goal_directed_reward(r, w)
-        effort_reward = self._calculate_effort_reward(r, action, prev_action)
+        effort_reward = self._calculate_effort_reward(action, prev_action)
 
-        total_reward = (self.weights.get('w_stability', 1.0) * stability_reward +
-                        self.weights.get('w_goal', 1.5) * goal_directed_reward +
-                        self.weights.get('w_effort', 1.0) * effort_reward)
+        total_reward = (self.weights['w_stability'] * stability_reward +
+                        self.weights['w_goal'] * goal_directed_reward +
+                        self.weights['w_effort'] * effort_reward)
 
         return total_reward
 
     def _calculate_stability_reward(self, robot):
-        """
-        Calcula a recompensa pela estabilidade do tronco.
-        Incentiva o robô a permanecer ereto.
-        """
-        try:
-            orientation = robot.imu_torso_orientation
-            if isinstance(orientation, (list, tuple)) and len(orientation) >= 2:
-                torso_roll, torso_pitch = orientation[0], orientation[1]
-            else:
-                return 0.0
-        except (ValueError, TypeError):
-            return 0.0 
-
-        stability_penalty = np.exp(-self.weights['stability_factor'] * (torso_roll**2 + torso_pitch**2))
-        return stability_penalty * self.weights['stability']
+        """Recompensa por estabilidade, penalizando inclinações excessivas."""
+        # [REWRITE] A recompensa de estabilidade agora é mais clara como um bônus por ficar em pé.
+        # A penalidade por cair é tratada separadamente e de forma mais contundente.
+        stability_bonus = np.exp(-self.weights['stability_factor'] * (robot.imu_torso_roll**2 + robot.imu_torso_pitch**2))
+        return stability_bonus
 
     def _calculate_goal_directed_reward(self, robot, world):
-        """
-        Recompensa o robô por se mover em direção à bola e ao gol adversário.
-        """
+        """Recompensa por se mover em direção à bola e ao gol adversário."""
+        
+        # [REWRITE] Recompensa de Proximidade e Contato com a Bola
         ball_dist = np.linalg.norm(world.ball_rel_torso_cart_pos)
-        r_ball_prox = np.exp(-(ball_dist**2) / self.weights['sigma_ball']**2)
+        r_ball_prox = np.exp(-(ball_dist**2)) # Recompensa por estar perto da bola
+        
+        # [REWRITE] Adicionado um bônus de contato explícito.
+        # Isso cria um incentivo claro para o agente tocar a bola, um passo crucial.
+        r_contact_bonus = 0.0
+        if ball_dist < 0.18: # Distância para considerar "contato"
+             r_contact_bonus = self.weights['w_contact']
 
+
+        # [REWRITE] Recompensa de Progresso em Direção ao Gol
         goal_pos = np.array([15.0, 0.0])
         ball_to_goal_dist = np.linalg.norm(world.ball_abs_pos[:2] - goal_pos)
         r_ball_goal = 0.0
         if self.prev_ball_to_goal_dist is not None:
             progress = self.prev_ball_to_goal_dist - ball_to_goal_dist
-            r_ball_goal = progress * 50
+            # [REWRITE] Aumentado o multiplicador para tornar o progresso mais recompensador.
+            r_ball_goal = progress * 100 
         self.prev_ball_to_goal_dist = ball_to_goal_dist
 
-        target_pos = world.ball_abs_pos
+        # Recompensa por alinhar a velocidade do agente com a bola
         agent_pos = robot.loc_head_position
         agent_vel = robot.get_head_abs_vel(2)
-        target_dir = (target_pos - agent_pos) / (np.linalg.norm(target_pos - agent_pos) + 1e-6)
+        target_dir = (world.ball_abs_pos - agent_pos) / (np.linalg.norm(world.ball_abs_pos - agent_pos) + 1e-6)
         r_vel_align = np.dot(agent_vel[:2], target_dir[:2])
 
-        return (self.weights.get('w_ball_prox', 0.3) * r_ball_prox +
-                self.weights.get('w_ball_goal', 0.6) * r_ball_goal +
-                self.weights.get('w_vel_align', 0.1) * r_vel_align)
+        self.prev_ball_dist = ball_dist
 
-    def _calculate_effort_reward(self, robot, action, prev_action):
-        """
-        Penaliza o uso excessivo de torque e movimentos bruscos, promovendo eficiência.
-        """
-        # --- UPDATE: JOINT ACCELERATION REMOVED ---
-        # Since joint velocities are not available from the parser, the joint
-        # acceleration penalty (r_accel) has been removed. The remaining penalties
-        # for torque and action rate still effectively encourage smooth movements.
+        return (self.weights['w_ball_prox'] * r_ball_prox +
+                self.weights['w_ball_goal'] * r_ball_goal +
+                self.weights['w_vel_align'] * r_vel_align +
+                r_contact_bonus)
 
-        # Penalidade de Torque: penaliza o esforço físico (magnitude da ação).
+    def _calculate_effort_reward(self, action, prev_action):
+        """Penaliza o uso excessivo de torque e movimentos bruscos."""
+        # Penalidade por magnitude da ação (esforço)
         r_torque = -np.linalg.norm(action)**2
-
-        # Penalidade de Taxa de Ação: penaliza mudanças bruscas nos comandos.
+        # Penalidade por movimentos bruscos
         r_action_rate = -np.linalg.norm(action - prev_action)**2
-
-        return (self.weights.get('w_torque', 1e-5) * r_torque +
-                self.weights.get('w_action_rate', 0.01) * r_action_rate)
+        
+        return (self.weights['w_torque'] * r_torque +
+                self.weights['w_action_rate'] * r_action_rate)
 
     def reset(self):
-        """Reseta os estados internos do calculador de recompensa."""
+        """Reseta os estados internos."""
         self.prev_ball_to_goal_dist = None
-        # self.prev_joint_vel is no longer needed
+        self.prev_ball_dist = None
 
 # =======================================================================================
 # AMBIENTE GYM OTIMIZADO
@@ -135,8 +124,9 @@ class Fast_Dribble_Gym(gym.Env):
         self.robot_type = r_type
         self.player = Agent(ip, server_p, monitor_p, 1, self.robot_type, "Gym", True, enable_draw)
         self.step_counter = 0
-
-        self.action_smoothing_factor = 0.2
+        
+        # [REWRITE] A suavização de ação é uma boa prática para movimentos mais realistas.
+        self.action_smoothing_factor = 0.25
         self.smoothed_action = None
 
         obs_size = 50
@@ -152,57 +142,40 @@ class Fast_Dribble_Gym(gym.Env):
         self.prev_action = np.zeros(self.action_space.shape, dtype=np.float32)
 
     def _get_reward_weights(self, custom_weights):
-        """Define os pesos da recompensa para o estágio atual do currículo."""
+        """Define os pesos da recompensa."""
         if custom_weights:
             return custom_weights
         
-        # Default weights for the final curriculum stage
+        # [REWRITE] Pesos ajustados e adicionado w_contact
         return {
-            'w_stability': 1.0, 'w_goal': 1.5, 'w_effort': 1.0,
-            'stability_factor': 1.2, 'stability': 0.25,
-            'w_ball_prox': 0.3, 'w_ball_goal': 0.6, 'w_vel_align': 0.1,
-            'w_torque': 1e-5, 'w_accel': 2.5e-7, 'w_action_rate': 0.01,
-            'sigma_ball': 0.5
+            'w_stability': 0.8, 'w_goal': 2.0, 'w_effort': 0.7, 'w_contact': 0.5,
+            'stability_factor': 1.0, 
+            'w_ball_prox': 0.4, 'w_ball_goal': 0.5, 'w_vel_align': 0.1,
+            'w_torque': 1e-4, 'w_action_rate': 0.02,
         }
 
     def observe(self):
         """Constrói o vetor de observação de forma robusta."""
         obs = np.zeros(50, dtype=np.float32)
-        
-        # Return zero observation if the world is not ready
-        if not hasattr(self.player, 'world'):
-            return obs
+        if not hasattr(self.player, 'world'): return obs
 
         r = self.player.world.robot
         w = self.player.world
 
-        # --- Safe data extraction ---
         try:
-            # Robot state
             obs[0:3] = r.get_head_abs_vel(2) / 5.0
-            
-            # Safely handle orientation
-            orientation = r.imu_torso_orientation
-            if isinstance(orientation, (list, tuple)) and len(orientation) == 3:
-                obs[3:6] = np.array(orientation) / 180.0
-            
+            obs[3:6] = np.array(r.imu_torso_orientation) / 180.0
             obs[6:9] = np.array(r.gyro) / 200.0
             obs[9:12] = np.array(r.acc) / 10.0
-            
-            # Safely handle foot pressure sensors
             obs[12:15] = np.array(r.frp.get('lf', (0,0,0,0,0,0))[3:]) / 100.0
             obs[15:18] = np.array(r.frp.get('rf', (0,0,0,0,0,0))[3:]) / 100.0
-            
-            # Joint positions
             obs[18:40] = np.array(r.joints_position[2:24]) / 180.0
             
-            # Ball state
             ball_rel_pos = np.array(w.ball_rel_torso_cart_pos)
             obs[40:43] = ball_rel_pos
-            obs[43] = np.linalg.norm(ball_rel_pos) # Corrected index
+            obs[43] = np.linalg.norm(ball_rel_pos)
             ideal_ball_pos = np.array([0.18, 0.0])
-            obs[44] = np.linalg.norm(ball_rel_pos[:2] - ideal_ball_pos) # Corrected index
-
+            obs[44] = np.linalg.norm(ball_rel_pos[:2] - ideal_ball_pos)
         except Exception as e:
             print(f"ERRO ao construir observação: {e}. Retornando observação nula.")
             return np.zeros(50, dtype=np.float32)
@@ -214,15 +187,17 @@ class Fast_Dribble_Gym(gym.Env):
         self.player.scom.receive()
 
     def reset(self):
+        """Reseta o ambiente com randomização de domínio para robustez."""
         self.step_counter = 0
         r = self.player.world.robot
 
         start_x = np.random.uniform(-5, 5)
         start_y = np.random.uniform(-3, 3)
-        ball_offset_x = np.random.uniform(0.2, 0.3)
-        ball_offset_y = np.random.uniform(-0.1, 0.1)
+        ball_offset_x = np.random.uniform(0.2, 0.4)
+        ball_offset_y = np.random.uniform(-0.15, 0.15)
+        start_ori = np.random.uniform(-20, 20)
 
-        self.player.scom.unofficial_beam((start_x, start_y, r.beam_height), 0)
+        self.player.scom.unofficial_beam((start_x, start_y, r.beam_height), start_ori)
         self.player.scom.unofficial_move_ball((start_x + ball_offset_x, start_y + ball_offset_y, 0.042))
         
         for _ in range(10):
@@ -235,7 +210,6 @@ class Fast_Dribble_Gym(gym.Env):
         return self.observe()
 
     def step(self, action):
-        # Apply action smoothing
         if self.smoothed_action is None:
             self.smoothed_action = action
         else:
@@ -253,20 +227,19 @@ class Fast_Dribble_Gym(gym.Env):
         terminal = False
         info = {}
         
+        # [REWRITE] Lógica de término ajustada
         if r.loc_head_z <= 0.4:
-            reward -= 10.0
+            reward -= 15.0  # Penalidade maior por cair
             terminal = True
-        elif np.linalg.norm(self.player.world.ball_rel_torso_cart_pos) > 2.0:
-            reward -= 5.0
-            terminal = False
+        elif np.linalg.norm(self.player.world.ball_rel_torso_cart_pos) > 2.5:
+            reward -= 2.0  # Penalidade menor por perder a bola
+            terminal = True # Termina o episódio se perder a bola
         elif self.step_counter > 1000:
             terminal = True
         
         return self.observe(), reward, terminal, info
 
-    def render(self, mode='human', close=False):
-        pass
-
+    def render(self, mode='human', close=False): pass
     def close(self):
         Draw.clear_all()
         self.player.terminate()
@@ -297,29 +270,17 @@ class Train(Train_Base):
         eval_env = None
         
         try:
-            # Start N servers for training + 1 for evaluation
             servers = Server(self.server_p, self.monitor_p_1000, n_envs + 1)
 
-            # --- FIX: CORRECT PORT LOGIC ---
-            # This function now correctly calculates the monitor port for each environment
-            # by incrementing it sequentially, matching how the servers were started.
             def init_env(i_env):
                 def thunk():
-                    env = Fast_Dribble_Gym(self.ip, 
-                                           self.server_p + i_env, 
-                                           self.monitor_p_1000 + i_env, # Correct sequential port
-                                           self.robot_type, 
-                                           enable_draw=False, 
-                                           curriculum_stage=4)
-                    return env
+                    return Fast_Dribble_Gym(self.ip, self.server_p + i_env, self.monitor_p_1000 + i_env, self.robot_type, enable_draw=False, curriculum_stage=4)
                 return thunk
 
-            # Create the vectorized environments for training
             env = SubprocVecEnv([init_env(i) for i in range(n_envs)])
             env = VecNormalize(env, norm_obs=True, norm_reward=True, clip_obs=10.)
             
-            # Create a separate environment for evaluation
-            eval_env = SubprocVecEnv([init_env(n_envs)]) # Uses the next available port
+            eval_env = SubprocVecEnv([init_env(n_envs)])
             eval_env = VecNormalize(eval_env, norm_obs=True, norm_reward=False, clip_obs=10., training=False)
 
             device = "cpu"
@@ -331,6 +292,7 @@ class Train(Train_Base):
                 model = PPO.load(args["model_file"], env=env, device=device)
             else:
                 print("Criando um novo modelo PPO.")
+                # [REWRITE] Adicionado `ent_coef` para incentivar a exploração.
                 model = PPO("MlpPolicy",
                             env,
                             verbose=1,
@@ -338,7 +300,7 @@ class Train(Train_Base):
                             batch_size=batch_size,
                             learning_rate=3e-4,
                             gamma=0.99,
-                            ent_coef=0.0,
+                            ent_coef=0.01, # Aumenta a exploração
                             n_epochs=10,
                             device=device,
                             tensorboard_log=f'./scripts/gyms/tensorboard/{folder_name}/')
@@ -354,14 +316,14 @@ class Train(Train_Base):
             print(f"\nOcorreu uma exceção: {e}. Salvando modelo e abortando...")
             if 'model' in locals() and model is not None:
                 model.save(f"{model_path}/dribble_agent_aborted.zip")
-            if env:
+            if 'env' in locals() and env is not None:
                 env.save(f"{model_path}/vec_normalize_aborted.pkl")
 
         finally:
             print("Fechando ambientes e servidores...")
-            if env: env.close()
-            if eval_env: eval_env.close()
-            if servers: servers.kill()
+            if 'env' in locals() and env: env.close()
+            if 'eval_env' in locals() and eval_env: eval_env.close()
+            if 'servers' in locals() and servers: servers.kill()
             print("Treinamento concluído.")
 
     def test(self, args):
@@ -394,6 +356,6 @@ class Train(Train_Base):
         except Exception as e:
             print(f"Ocorreu um erro durante o teste: {e}")
         finally:
-            if env: env.close()
-            if server: server.kill()
+            if 'env' in locals() and env: env.close()
+            if 'server' in locals() and server: server.kill()
             print("Teste finalizado.")

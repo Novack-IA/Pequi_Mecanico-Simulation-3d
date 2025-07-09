@@ -1,1 +1,0 @@
-Enemies/WitsFC_SS3D_RC2024_BIN.tar.gz Enemies/magmaOffenburg_SS3D_RC2024_BIN.tar.gz Enemies/ITAndroids_SS3D_RC2024_BIN.tar.gz Enemies/FCPortugal_SS3D_RC2024_BIN.tar.gz Enemies/BahiaRT_SS3D_RC2024_BIN.tar.gz Enemies/Apollo_SS3D_RC2024_BIN.tar.gz

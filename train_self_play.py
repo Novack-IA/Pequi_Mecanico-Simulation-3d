@@ -1,13 +1,19 @@
-from scripts.commons.Script import Script
-from scripts.gyms.self_play_gym import Train as TrainSelfPlay
 import os
+from scripts.commons.Script import Script
+
+# 1. Inicializa o Script aqui, no escopo global.
+#    Isso garante que os módulos C++ sejam compilados ANTES de qualquer outra coisa.
+script = Script()
+
+# 2. Agora que a compilação está garantida, podemos importar o nosso Gym.
+from scripts.gyms.self_play_gym import Train as TrainSelfPlay
 
 def main():
     """
     Script principal para o treinamento de self-play por N gerações.
     """
     generations = 100
-    total_timesteps_per_generation = 100000 # Ajuste conforme necessário
+    total_timesteps_per_generation = 100000  # Ajuste conforme necessário
 
     # Caminho do melhor modelo da geração anterior
     last_best_model = None
@@ -17,10 +23,8 @@ def main():
         print(f" INICIANDO GERAÇÃO DE TREINAMENTO Nº {gen} ")
         print(f"=========================================")
 
-        # Inicializa o script base do FC Portugal
-        script = Script()
-
-        # Instancia nosso treinador customizado
+        # A instância do 'script' já foi criada no escopo global.
+        # Instancia nosso treinador customizado, passando o script já inicializado.
         trainer = TrainSelfPlay(script)
 
         # Inicia o treinamento

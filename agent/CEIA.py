@@ -23,7 +23,6 @@ class Agent(Base_Agent):
         self.init_pos = robot_config['initial_position'] # initial formation
 
         # Initialize base agent
-        # Args: Server IP, Agent Port, Monitor Port, Uniform No., Robot Type, Team Name, Enable Log, Enable Draw, play mode correction, Wait for Server, Hear Callback
         super().__init__(host, agent_port, monitor_port, unum, robot_type, team_name, enable_log, enable_draw, True, wait_for_server, None)
 
         self.enable_draw = enable_draw
@@ -40,18 +39,9 @@ class Agent(Base_Agent):
 
         # Instancia o comportamento de drible
         self.dribble = Dribble(self)
-        self.kick_distance = 0
-        self.fat_proxy_cmd = "" if is_fat_proxy else None
-        self.fat_proxy_walk = np.zeros(3) # filtered walk parameters for fat proxy
-        
-        self.pos3 = []
-        self.pos6 = []
-        self.pos9 = []
-        self.pos10 = []
-
-        # Instancia o comportamento de drible
-        self.dribble = Dribble(self)
         self.dribble.phase = 0  # inicializa a fase do drible
+
+    # ... (beam, move, kick, kick_strong, and fat_proxy methods remain the same) ...
 
     def beam(self, avoid_center_circle=False):
         r = self.world.robot
@@ -76,24 +66,6 @@ class Agent(Base_Agent):
              avoid_obstacles=True, priority_unums=[], is_aggressive=False, timeout=3000):
         '''
         Walk to target position
-
-        Parameters
-        ----------
-        target_2d : array_like
-            2D target in absolute coordinates
-        orientation : float
-            absolute or relative orientation of torso, in degrees
-            set to None to go towards the target (is_orientation_absolute is ignored)
-        is_orientation_absolute : bool
-            True if orientation is relative to the field, False if relative to the robot's torso
-        avoid_obstacles : bool
-            True to avoid obstacles using path planning (maybe reduce timeout arg if this function is called multiple times per simulation cycle)
-        priority_unums : list
-            list of teammates to avoid (since their role is more important)
-        is_aggressive : bool
-            if True, safety margins are reduced for opponents
-        timeout : float
-            restrict path planning to a maximum duration (in microseconds)    
         '''
         r = self.world.robot
 
@@ -110,30 +82,10 @@ class Agent(Base_Agent):
         self.behavior.execute("Walk", target_2d, True, orientation, is_orientation_absolute, distance_to_final_target) # Args: target, is_target_abs, ori, is_ori_abs, distance
 
 
-
     def kick(self, kick_direction=None, kick_distance=None, abort=False, enable_pass_command=False):
         '''
         Walk to ball and kick
-
-        Parameters
-        ----------
-        kick_direction : float
-            kick direction, in degrees, relative to the field
-        kick_distance : float
-            kick distance in meters
-        abort : bool
-            True to abort.
-            The method returns True upon successful abortion, which is immediate while the robot is aligning itself. 
-            However, if the abortion is requested during the kick, it is delayed until the kick is completed.
-        avoid_pass_command : bool
-            When False, the pass command will be used when at least one opponent is near the ball
-            
-        Returns
-        -------
-        finished : bool
-            Returns True if the behavior finished or was successfully aborted.
         '''
-
         if self.min_opponent_ball_dist < 1.45 and enable_pass_command:
             self.scom.commit_pass_command()
 
@@ -145,30 +97,10 @@ class Agent(Base_Agent):
         else: # fat proxy behavior
             return self.fat_proxy_kick()
         
-
     def kick_strong(self, kick_direction=None, kick_distance=None, abort=False, enable_pass_command=False):
         '''
         Walk to ball and kick
-
-        Parameters
-        ----------
-        kick_direction : float
-            kick direction, in degrees, relative to the field
-        kick_distance : float
-            kick distance in meters
-        abort : bool
-            True to abort.
-            The method returns True upon successful abortion, which is immediate while the robot is aligning itself. 
-            However, if the abortion is requested during the kick, it is delayed until the kick is completed.
-        avoid_pass_command : bool
-            When False, the pass command will be used when at least one opponent is near the ball
-            
-        Returns
-        -------
-        finished : bool
-            Returns True if the behavior finished or was successfully aborted.
         '''
-
         if self.min_opponent_ball_dist < 1.45 and enable_pass_command:
             self.scom.commit_pass_command()
 
@@ -180,231 +112,271 @@ class Agent(Base_Agent):
         else: # fat proxy behavior
             return self.fat_proxy_kick()
 
-
+    # -------------------------------------------------------------------
+    # THINK AND SEND - HIGH-LEVEL COORDINATOR
+    # -------------------------------------------------------------------
     def think_and_send(self):
+        """
+        Main loop function: coordinates updating state, making decisions,
+        and sending commands.
+        """
+        self._update_world_state()
+        self._handle_game_state()
+        self._broadcast_and_send_command()
+        self._update_debug_drawings()
+
+    # -------------------------------------------------------------------
+    # 1. PREPROCESSING AND STATE UPDATE
+    # -------------------------------------------------------------------
+    def _update_world_state(self):
+        """Gathers and computes all necessary state variables for decision-making."""
         w = self.world
-        r = self.world.robot  
-        my_head_pos_2d = r.loc_head_position[:2]
-        my_ori = r.imu_torso_orientation
-        ball_2d = w.ball_abs_pos[:2]
-        ball_vec = ball_2d - my_head_pos_2d
-        ball_dir = M.vector_angle(ball_vec)
-        ball_dist = np.linalg.norm(ball_vec)
-        ball_sq_dist = ball_dist * ball_dist # for faster comparisons
-        ball_speed = np.linalg.norm(w.get_ball_abs_vel(6)[:2])
-        behavior = self.behavior
-        goal_dir = M.target_abs_angle(ball_2d,(15.05,0))
-        path_draw_options = self.path_manager.draw_options
-        PM = w.play_mode
-        PM_GROUP = w.play_mode_group
-        possession_threshold_1 = 0.1
-        #--------------------------------------- 1. Preprocessing
+        r = self.world.robot
+        
+        # Basic world and robot state
+        self.my_head_pos_2d = r.loc_head_position[:2]
+        self.ball_2d = w.ball_abs_pos[:2]
+        ball_vec = self.ball_2d - self.my_head_pos_2d
+        self.ball_dir = M.vector_angle(ball_vec)
+        self.goal_dir = M.target_abs_angle(self.ball_2d, (15.05, 0))
+        self.PM = w.play_mode
+        self.PM_GROUP = w.play_mode_group
 
-        slow_ball_pos = w.get_predicted_ball_pos(0.5) # predicted future 2D ball position when ball speed <= 0.5 m/s
+        # Ball and player distance calculations
+        slow_ball_pos = w.get_predicted_ball_pos(0.5)
+        teammates_sq_dist = self._calculate_player_distances_to_ball(w.teammates, slow_ball_pos)
+        opponents_sq_dist = self._calculate_player_distances_to_ball(w.opponents, slow_ball_pos)
+        
+        min_teammate_sq_dist = min(teammates_sq_dist)
+        self.min_teammate_ball_dist = math.sqrt(min_teammate_sq_dist)
+        self.min_opponent_ball_dist = math.sqrt(min(opponents_sq_dist))
+        self.active_player_unum = teammates_sq_dist.index(min_teammate_sq_dist) + 1
 
-        # list of squared distances between teammates (including self) and slow ball (sq distance is set to 1000 in some conditions)
-        teammates_ball_sq_dist = [np.sum((p.state_abs_pos[:2] - slow_ball_pos) ** 2)  # squared distance between teammate and ball
-                                  if p.state_last_update != 0 and (w.time_local_ms - p.state_last_update <= 360 or p.is_self) and not p.state_fallen
-                                  else 1000 # force large distance if teammate does not exist, or its state info is not recent (360 ms), or it has fallen
-                                  for p in w.teammates ]
+    def _calculate_player_distances_to_ball(self, players, ball_pos):
+        """Calculates squared distances from a list of players to the ball."""
+        w = self.world
+        distances = []
+        for p in players:
+            is_valid = p.state_last_update != 0 and \
+                       (w.time_local_ms - p.state_last_update <= 360 or p.is_self) and \
+                       not p.state_fallen
+            if is_valid:
+                dist_sq = np.sum((p.state_abs_pos[:2] - ball_pos) ** 2)
+                distances.append(dist_sq)
+            else:
+                distances.append(1000) # Use a large distance for invalid players
+        return distances
 
-        # list of squared distances between opponents and slow ball (sq distance is set to 1000 in some conditions)
-        opponents_ball_sq_dist = [np.sum((p.state_abs_pos[:2] - slow_ball_pos) ** 2)  # squared distance between teammate and ball
-                                  if p.state_last_update != 0 and w.time_local_ms - p.state_last_update <= 360 and not p.state_fallen
-                                  else 1000 # force large distance if opponent does not exist, or its state info is not recent (360 ms), or it has fallen
-                                  for p in w.opponents ]
-
-        min_teammate_ball_sq_dist = min(teammates_ball_sq_dist)
-        self.min_teammate_ball_dist = math.sqrt(min_teammate_ball_sq_dist)   # distance between ball and closest teammate
-        self.min_opponent_ball_dist = math.sqrt(min(opponents_ball_sq_dist)) # distance between ball and closest opponent
-
-        active_player_unum = teammates_ball_sq_dist.index(min_teammate_ball_sq_dist) + 1
-
-        #--------------------------------------- 2. Decide action
-
-        if PM == w.M_GAME_OVER:
+    # -------------------------------------------------------------------
+    # 2. DECISION MAKING
+    # -------------------------------------------------------------------
+    def _handle_game_state(self):
+        """Directs agent behavior based on the current game mode (PM) and agent state."""
+        if self.PM == self.world.M_GAME_OVER:
             pass
-        elif PM_GROUP == w.MG_ACTIVE_BEAM:
+        elif self.PM_GROUP == self.world.MG_ACTIVE_BEAM:
             self.beam()
-        elif PM_GROUP == w.MG_PASSIVE_BEAM:
-            self.beam(True) # avoid center circle
-        elif self.state == 1 or (behavior.is_ready("Get_Up") and self.fat_proxy_cmd is None):
-            self.state = 0 if behavior.execute("Get_Up") else 1 # return to normal state if get up behavior has finished
-        elif PM == w.M_OUR_KICKOFF:
-            if r.unum == 9:
-                self.kick(110, 1) # no need to change the state when PM is not Play On
-            else:
-                self.move(self.init_pos, orientation=ball_dir) # walk in place
-        elif PM == w.M_THEIR_KICKOFF:
-            self.move(self.init_pos, orientation=ball_dir) # walk in place
-        elif active_player_unum != r.unum: # I am not the active player 
-            if r.unum == 1: # I am the goalkeeper
-                self.move(self.init_pos, orientation=ball_dir) # walk in place 
-            else:
-                # compute basic formation position based on ball position
-                new_x = max(0.5,(ball_2d[0]+15)/15) * (self.init_pos[0]+15) - 15
-                if self.min_teammate_ball_dist < self.min_opponent_ball_dist:
-                    new_x = min(new_x + 3.5, 13) # advance if team has possession
-                self.move((new_x,self.init_pos[1]), orientation=ball_dir, priority_unums=[active_player_unum])
+        elif self.PM_GROUP == self.world.MG_PASSIVE_BEAM:
+            self.beam(True)
+        elif self.state == 1 or (self.behavior.is_ready("Get_Up") and self.fat_proxy_cmd is None):
+            self._handle_getting_up()
+        elif self.PM == self.world.M_OUR_KICKOFF:
+            self._handle_our_kickoff()
+        elif self.PM == self.world.M_THEIR_KICKOFF:
+            self.move(self.init_pos, orientation=self.ball_dir)
+        elif self.active_player_unum != self.world.robot.unum:
+            self._handle_inactive_player_action()
+        else: # I am the active player
+            self._handle_active_player_action()
 
-        else: # I am the active player            
-            path_draw_options(enable_obstacles=True, enable_path=True, use_team_drawing_channel=True) # enable path drawings for active player (ignored if self.enable_draw is False)
-            enable_pass_command = (PM == w.M_PLAY_ON and ball_2d[0]<6)
+    def _handle_getting_up(self):
+        """Executes the get-up behavior and updates the agent's state."""
+        self.state = 0 if self.behavior.execute("Get_Up") else 1
 
-            if r.unum == 1 and PM_GROUP == w.MG_THEIR_KICK: # goalkeeper during their kick
-                self.move(self.init_pos, orientation=ball_dir) # walk in place 
-            elif r.unum == 1 and PM_GROUP == w.M_OUR_GOAL_KICK:
-                if hasattr(self.world, 'pos3'):
-                    self.pos3 = self.world.pos3.tolist()
-                
-                angle = M.target_abs_angle(r.loc_head_position[:2], self.pos3[:2])
+    def _handle_our_kickoff(self):
+        """Logic for when our team has the kickoff."""
+        if self.world.robot.unum == 9:
+            self.kick(110, 1)
+        else:
+            self.move(self.init_pos, orientation=self.ball_dir)
+
+    def _handle_inactive_player_action(self):
+        """Defines behavior when the agent is not the closest to the ball."""
+        r = self.world.robot
+        if r.unum == 1: # Goalkeeper
+            self.move(self.init_pos, orientation=self.ball_dir)
+        else: # Field player
+            # Compute formation position based on ball
+            new_x = max(0.5, (self.ball_2d[0] + 15) / 15) * (self.init_pos[0] + 15) - 15
+            if self.min_teammate_ball_dist < self.min_opponent_ball_dist:
+                new_x = min(new_x + 3.5, 13) # Advance if team has possession
+            self.move((new_x, self.init_pos[1]), orientation=self.ball_dir, priority_unums=[self.active_player_unum])
+
+    def _handle_active_player_action(self):
+        """Directs behavior when the agent is the active player (closest to the ball)."""
+        r = self.world.robot
+        w = self.world
+        
+        self.path_manager.draw_options(enable_obstacles=True, enable_path=True, use_team_drawing_channel=True)
+        
+        enable_pass = (self.PM == w.M_PLAY_ON and self.ball_2d[0] < 6)
+
+        if r.unum == 1:
+            self._execute_goalkeeper_active_logic()
+        elif self.PM == w.M_OUR_CORNER_KICK:
+            self.kick(-np.sign(self.ball_2d[1]) * 95, 10)
+        elif r.unum in [6, 9, 10]:
+             self._execute_forward_logic(r.unum)
+        elif self.min_opponent_ball_dist + 0.5 < self.min_teammate_ball_dist:
+            self._execute_defensive_maneuver()
+        else: # Default action for other players or fallback
+             self._execute_pass_to_closest_forward([6, 9, 10])
+
+        self.path_manager.draw_options(enable_obstacles=False, enable_path=False)
+
+    def _execute_goalkeeper_active_logic(self):
+        """Contains all active logic specific to the goalkeeper (unum 1)."""
+        if self.PM_GROUP == self.world.MG_THEIR_KICK:
+            self.move(self.init_pos, orientation=self.ball_dir)
+        elif self.PM_GROUP == self.world.M_OUR_GOAL_KICK:
+            if hasattr(self.world, 'pos3'):
+                self.pos3 = self.world.pos3.tolist()
+                angle = M.target_abs_angle(self.my_head_pos_2d, self.pos3[:2])
                 self.kick(angle, 100)
-            if PM == w.M_OUR_CORNER_KICK:
-                self.kick( -np.sign(ball_2d[1])*95, 10) # kick the ball into the space in front of the opponent's goal
-                # no need to change the state when PM is not Play On
-            if r.unum not in [6, 9, 10]:
-                if hasattr(self.world, 'pos6'):
-                    self.pos6 = self.world.pos6.tolist()
+        else: # Default PlayOn action for goalkeeper
+             self.state = 0 if self.kick(self.goal_dir, 20, False, True) else 2
 
-                if hasattr(self.world, 'pos9'):
-                    self.pos9 = self.world.pos9.tolist()
+    def _execute_forward_logic(self, unum):
+        """Determines actions for the forwards (6, 9, 10)."""
+        if unum == 6:
+            self._execute_pass_to_closest_forward([9, 10])
+        elif unum == 9:
+            self._execute_striker_action()
+        elif unum == 10:
+            self._execute_dribbler_action()
 
-                if hasattr(self.world, 'pos10'):
-                    self.pos10 = self.world.pos10.tolist()
+    def _execute_pass_to_closest_forward(self, target_unums):
+        """Finds the closest teammate from a list and kicks to them."""
+        r = self.world.robot
+        teammate_positions = {
+            6: self.world.pos6.tolist() if hasattr(self.world, 'pos6') else None,
+            9: self.world.pos9.tolist() if hasattr(self.world, 'pos9') else None,
+            10: self.world.pos10.tolist() if hasattr(self.world, 'pos10') else None,
+        }
+        
+        closest_teammate_unum = -1
+        min_dist = float('inf')
+
+        for unum in target_unums:
+            pos = teammate_positions.get(unum)
+            if pos:
+                dist = math.dist(pos[:2], r.loc_head_position[:2])
+                if dist < min_dist:
+                    min_dist = dist
+                    closest_teammate_unum = unum
+        
+        if closest_teammate_unum != -1:
+            target_pos = teammate_positions[closest_teammate_unum]
+            angle = M.target_abs_angle(r.loc_head_position[:2], target_pos[:2])
+            self.kick(angle, 1000)
+        else: # Fallback if no target is found
+            self.kick(self.goal_dir, 20)
 
 
-                dist6 = math.dist(self.pos6[:2], r.loc_head_position[:2])
-                dist9 = math.dist(self.pos9[:2], r.loc_head_position[:2])
-                dist10 = math.dist(self.pos10[:2], r.loc_head_position[:2])
-                distancias = (dist6, dist9, dist10)
-                print('Distancias (6): ', distancias)
-                p_proximo = distancias.index(min(distancias))
+    def _execute_striker_action(self):
+        """Logic for player 9: Shoot if close, otherwise pass to player 10."""
+        r = self.world.robot
+        if hasattr(self.world, 'pos10'):
+            self.pos10 = self.world.pos10.tolist()
+            dist_to_10 = math.dist(r.loc_head_position[:2], self.pos10[:2])
+            goal_dist = M.distance_point_to_opp_goal(self.ball_2d)
 
-                if p_proximo == 0:
-                    angle = M.target_abs_angle(r.loc_head_position[:2], self.pos6[:2])
-                    self.kick(angle, 1000)           
-                elif p_proximo == 1:
-                    angle = M.target_abs_angle(r.loc_head_position[:2], self.pos9[:2])
-                    self.kick(angle, 1000)           
-                elif p_proximo == 2:
-                    angle = M.target_abs_angle(r.loc_head_position[:2], self.pos10[:2])
-                    self.kick(angle, 1000)           
-
-            elif r.unum == 6:
-                if hasattr(self.world, 'pos9'):
-                    self.pos9 = self.world.pos9.tolist()
-
-                if hasattr(self.world, 'pos10'):
-                    self.pos10 = self.world.pos10.tolist()
-
-                dist9 = math.dist(self.pos9[:2], r.loc_head_position[:2])
-                dist10 = math.dist(self.pos10[:2], r.loc_head_position[:2])
-                distancias = (dist9, dist10)
-                print('DISTANCIAS (todos): ', distancias)
-                p_proximo = distancias.index(min(distancias))
-
-                if p_proximo == 0:
-                    angle = M.target_abs_angle(r.loc_head_position[:2], self.pos9[:2])
-                    self.kick(angle, 1000)           
-                elif p_proximo == 1:
-                    angle = M.target_abs_angle(r.loc_head_position[:2], self.pos10[:2])
-                    self.kick(angle, 1000)
-            elif r.unum == 9:
-                if hasattr(self.world, 'pos9'):
-                    self.pos9 = self.world.pos9.tolist()
-
-                if hasattr(self.world, 'pos10'):
-                    self.pos10 = self.world.pos10.tolist()
-
-                goal_dist = M.distance_point_to_opp_goal(ball_2d[:2])
-                dist_9_10 = math.sqrt((self.pos9[0] - self.pos10[0])**2 + (self.pos9[1] - self.pos10[1])**2)
-
-                if goal_dist <= dist_9_10:
-                    self.kick(goal_dir, 1000)
-                else:
-                    angle = M.target_abs_angle(r.loc_head_position[:2], self.pos10[:2])
-                    self.kick(angle, 1000)                        
-            elif r.unum == 10:
-                if PM == w.M_PLAY_ON and self.dribble.is_ready():
-                    # Aqui, podemos definir os parâmetros de drible.
-                    # Por exemplo, se nenhum ângulo foi especificado, o dribble irá buscar a orientação para o gol adversário.
-                    reset = False  # ou alguma condição que indique que o dribble deve ser reiniciado
-                    orientation = None  # drible para o gol
-                    is_orientation_absolute = True
-                    speed = 1  # velocidade máxima
-                    stop = False
-                    dribble_finished = self.dribble.execute(reset, orientation, is_orientation_absolute, speed, stop)
-                    if dribble_finished:
-                        # Se o dribble terminou, podemos reiniciar a fase ou tomar outra ação.
-                        self.dribble.phase = 0
-                else:
-                    self.kick(goal_dir, 5)
-            elif self.min_opponent_ball_dist + 0.5 < self.min_teammate_ball_dist: # defend if opponent is considerably closer to the ball
-                if self.state == 2: # commit to kick while aborting
-                    self.state = 0 if self.kick(abort=True) else 2
-                else: # move towards ball, but position myself between ball and our goal
-                    self.move(slow_ball_pos + M.normalize_vec((-16,0) - slow_ball_pos) * 0.2, is_aggressive=True)
+            if goal_dist <= dist_to_10:
+                self.kick_strong(self.goal_dir, 1000)
             else:
-                self.state = 0 if self.kick(goal_dir,20,False,enable_pass_command) else 2
+                angle = M.target_abs_angle(r.loc_head_position[:2], self.pos10[:2])
+                self.kick(angle, 1000)
+        else:
+            self.kick_strong(self.goal_dir, 1000)
 
-            path_draw_options(enable_obstacles=False, enable_path=False) # disable path drawings
+    def _execute_dribbler_action(self):
+        """Logic for player 10: Dribble towards the goal."""
+        if self.PM == self.world.M_PLAY_ON and self.dribble.is_ready():
+            dribble_finished = self.dribble.execute(
+                reset=False, orientation=None, is_orientation_absolute=True, speed=1, stop=False
+            )
+            if dribble_finished:
+                self.dribble.phase = 0
+        else:
+            self.kick(self.goal_dir, 5)
 
-        #--------------------------------------- 3. Broadcast
+    def _execute_defensive_maneuver(self):
+        """Positions the agent defensively between the ball and our goal."""
+        if self.state == 2:  # Currently kicking, abort it
+            self.state = 0 if self.kick(abort=True) else 2
+        else:
+            # Move between ball and our goal
+            target_pos = self.ball_2d + M.normalize_vec((-16, 0) - self.ball_2d) * 0.2
+            self.move(target_pos, is_aggressive=True)
+            
+    # -------------------------------------------------------------------
+    # 3. BROADCAST AND SEND
+    # -------------------------------------------------------------------
+    def _broadcast_and_send_command(self):
+        """Broadcasts state and sends the final command to the server."""
         self.radio.broadcast()
 
-        #--------------------------------------- 4. Send to server
-        if self.fat_proxy_cmd is None: # normal behavior
-            self.scom.commit_and_send( r.get_command() )
-        else: # fat proxy behavior
-            self.scom.commit_and_send( self.fat_proxy_cmd.encode() ) 
+        r = self.world.robot
+        if self.fat_proxy_cmd is None:  # Normal behavior
+            self.scom.commit_and_send(r.get_command())
+        else:  # Fat proxy behavior
+            self.scom.commit_and_send(self.fat_proxy_cmd.encode())
             self.fat_proxy_cmd = ""
 
-        #---------------------- annotations for debugging
-        if self.enable_draw: 
-            d = w.draw
-            if active_player_unum == r.unum:
-                d.point(slow_ball_pos, 3, d.Color.pink, "status", False) # predicted future 2D ball position when ball speed <= 0.5 m/s
-                d.point(w.ball_2d_pred_pos[-1], 5, d.Color.pink, "status", False) # last ball prediction
-                d.annotation((*my_head_pos_2d, 0.6), "I've got it!" , d.Color.yellow, "status")
+    # -------------------------------------------------------------------
+    # 4. DEBUGGING ANNOTATIONS
+    # -------------------------------------------------------------------
+    def _update_debug_drawings(self):
+        """Draws annotations on the monitor for debugging purposes."""
+        if self.enable_draw:
+            d = self.world.draw
+            if self.active_player_unum == self.world.robot.unum:
+                slow_ball_pos = self.world.get_predicted_ball_pos(0.5)
+                d.point(slow_ball_pos, 3, d.Color.pink, "status", False)
+                d.annotation((*self.my_head_pos_2d, 0.6), "I've got it!", d.Color.yellow, "status")
             else:
                 d.clear("status")
 
-
-
-
-    #--------------------------------------- Fat proxy auxiliary methods
-
-
+    # -------------------------------------------------------------------
+    # Fat proxy auxiliary methods
+    # -------------------------------------------------------------------
     def fat_proxy_kick(self):
         w = self.world
-        r = self.world.robot 
+        r = self.world.robot
         ball_2d = w.ball_abs_pos[:2]
         my_head_pos_2d = r.loc_head_position[:2]
 
         if np.linalg.norm(ball_2d - my_head_pos_2d) < 0.25:
-            # fat proxy kick arguments: power [0,10]; relative horizontal angle [-180,180]; vertical angle [0,70]
-            self.fat_proxy_cmd += f"(proxy kick 10 {M.normalize_deg( self.kick_direction  - r.imu_torso_orientation ):.2f} 20)" 
+            self.fat_proxy_cmd += f"(proxy kick 10 {M.normalize_deg( self.kick_direction - r.imu_torso_orientation ):.2f} 20)"
             self.fat_proxy_walk = np.zeros(3) # reset fat proxy walk
             return True
         else:
-            self.fat_proxy_move(ball_2d-(-0.1,0), None, True) # ignore obstacles
+            self.fat_proxy_move(ball_2d - (-0.1, 0), None, True)
             return False
-
 
     def fat_proxy_move(self, target_2d, orientation, is_orientation_absolute):
         r = self.world.robot
-
         target_dist = np.linalg.norm(target_2d - r.loc_head_position[:2])
         target_dir = M.target_rel_angle(r.loc_head_position[:2], r.imu_torso_orientation, target_2d)
 
         if target_dist > 0.1 and abs(target_dir) < 8:
-            self.fat_proxy_cmd += (f"(proxy dash {100} {0} {0})")
+            self.fat_proxy_cmd += f"(proxy dash 100 0 0)"
             return
 
         if target_dist < 0.1:
             if is_orientation_absolute:
-                orientation = M.normalize_deg( orientation - r.imu_torso_orientation )
+                orientation = M.normalize_deg(orientation - r.imu_torso_orientation)
             target_dir = np.clip(orientation, -60, 60)
-            self.fat_proxy_cmd += (f"(proxy dash {0} {0} {target_dir:.1f})")
+            self.fat_proxy_cmd += f"(proxy dash 0 0 {target_dir:.1f})"
         else:
-            self.fat_proxy_cmd += (f"(proxy dash {20} {0} {target_dir:.1f})")
+            self.fat_proxy_cmd += f"(proxy dash 20 0 {target_dir:.1f})"

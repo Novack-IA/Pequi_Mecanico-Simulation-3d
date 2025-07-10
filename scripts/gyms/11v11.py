@@ -34,7 +34,7 @@ class SelfPlay11v11(gym.Env):
 
         # --- Observation and Action Spaces ---
         obs_size_per_player = 50
-        act_size_per_player = 22
+        act_size_per_player = 20
         self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(11 * obs_size_per_player,), dtype=np.float32)
         self.action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(11 * act_size_per_player,), dtype=np.float32)
 
@@ -46,26 +46,38 @@ class SelfPlay11v11(gym.Env):
             print("No opponent model found. Opponent will act randomly.")
 
     def step(self, combined_action):
-        actions = np.split(combined_action, 11)
+        # 1. Distribute actions to the learning team
+        learning_actions = np.split(combined_action, 11)
         for i, player in enumerate(self.learning_team):
-            player.world.robot.set_joints_target_position_direct(slice(2, 24), actions[i] * 25, harmonize=False)
+            # --- CORRECTED LINE ---
+            # Use the actual number of joints from the robot object and remove "* 25"
+            player.world.robot.set_joints_target_position_direct(slice(2, player.world.robot.no_of_joints), learning_actions[i], harmonize=False)
             player.scom.commit_and_send(player.world.robot.get_command())
 
+        # 2. Get actions for the frozen opponent team
         if self.opponent_model:
             opponent_obs = self._get_opponent_observation()
             opponent_actions, _ = self.opponent_model.predict(opponent_obs, deterministic=True)
-            opponent_actions = np.split(opponent_actions, 11)
-            for i, player in enumerate(self.frozen_opponent_team):
-                player.world.robot.set_joints_target_position_direct(slice(2, 24), opponent_actions[i] * 25, harmonize=False)
+            opponent_actions_split = np.split(opponent_actions, 11)
+            for i, player in enumerate(self.opponent_team):
+                # --- CORRECTED LINE ---
+                # Also apply the fix to the opponent team
+                player.world.robot.set_joints_target_position_direct(slice(2, player.world.robot.no_of_joints), opponent_actions_split[i], harmonize=False)
                 player.scom.commit_and_send(player.world.robot.get_command())
+        else: 
+            for player in self.opponent_team:
+                player.scom.commit_and_send(b'')
 
-        for player in self.learning_team: player.scom.receive()
-        for player in self.frozen_opponent_team: player.scom.receive()
+        # 3. Receive world state updates for all 22 agents
+        for player in self.learning_team: player.scom.receive(update=True)
+        for player in self.opponent_team: player.scom.receive(update=True)
 
+        # 4. Calculate reward and check for terminal condition
         self.step_counter += 1
         obs = self._get_observation()
         reward = self._calculate_aggressive_reward()
         done = self._check_if_done()
+        
         return obs, reward, done, {}
 
     def reset(self):

@@ -1,12 +1,11 @@
-# In Run_SelfPlay_Training.py
+# In Run_SelfPlay_Training.py (or aaaa.py)
 
 import os
 import sys
 import gym
 import numpy as np
 from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import SubprocVecEnv, VecNormalize
-from stable_baselines3.common.callbacks import CheckpointCallback
+from stable_baselines3.common.vec_env import SubprocVecEnv
 
 # This is crucial for making imports work correctly
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
@@ -18,9 +17,7 @@ from scripts.commons.Script import Script
 
 class SelfPlay11v11Env(gym.Env):
     """
-    A multi-agent environment for 11 vs 11 self-play. It manages 22 agents and
-    their interaction with the SimSpark server within a single environment instance.
-    This is designed to be used with SubprocVecEnv for parallel training.
+    A multi-agent environment for 11 vs 11 self-play.
     """
     def __init__(self, ip, server_p, monitor_p, r_type, enable_draw):
         super(SelfPlay11v11Env, self).__init__()
@@ -30,22 +27,19 @@ class SelfPlay11v11Env(gym.Env):
         self.last_goals_conceded = 0
         self.robot_type = r_type
 
-        # --- Agent Setup ---
-        # The agent being trained (the "learning" team)
         self.learning_team = [Agent(ip, server_p + i, monitor_p + i, i + 1, "Pequi", enable_draw, enable_draw, wait_for_server=False) for i in range(11)]
-        
-        # The opponent team, which will use a "frozen" policy
         self.opponent_team = [Agent(ip, server_p + 11 + i, monitor_p + 11 + i, i + 1, "Opponent", enable_draw, enable_draw, wait_for_server=False) for i in range(11)]
         self.opponent_model = None
 
-        # --- Observation and Action Spaces (Flattened for standard PPO) ---
         obs_size_per_player = 50
-        act_size_per_player = 22
+        # --- CORRECTED ACTION SIZE ---
+        # The robot has 22 joints, but we control joints 2 through 21 (20 total).
+        act_size_per_player = 20
+        # ---------------------------
         self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(11 * obs_size_per_player,), dtype=np.float32)
         self.action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(11 * act_size_per_player,), dtype=np.float32)
 
     def load_opponent_model(self, model_path):
-        """Loads a PPO model for the opponent team."""
         if os.path.exists(model_path):
             self.opponent_model = PPO.load(model_path, env=self)
             print(f"Opponent model loaded from {model_path}")
@@ -53,30 +47,27 @@ class SelfPlay11v11Env(gym.Env):
             print("No opponent model found. Opponent will not act.")
 
     def step(self, combined_action):
-        # 1. Distribute actions to the learning team
         learning_actions = np.split(combined_action, 11)
         for i, player in enumerate(self.learning_team):
-            player.world.robot.set_joints_target_position_direct(slice(2, 24), learning_actions[i] * 25, harmonize=False)
+            # --- CORRECTED FUNCTION CALL ---
+            # Using the correct slice and setting harmonize to False
+            player.world.robot.set_joints_target_position_direct(slice(2, player.world.robot.no_of_joints), learning_actions[i], harmonize=False)
             player.scom.commit_and_send(player.world.robot.get_command())
+            # ---------------------------
 
-        # 2. Get actions for the frozen opponent team
         if self.opponent_model:
             opponent_obs = self._get_opponent_observation()
             opponent_actions, _ = self.opponent_model.predict(opponent_obs, deterministic=True)
             opponent_actions_split = np.split(opponent_actions, 11)
             for i, player in enumerate(self.opponent_team):
-                player.world.robot.set_joints_target_position_direct(slice(2, 24), opponent_actions_split[i] * 25, harmonize=False)
+                player.world.robot.set_joints_target_position_direct(slice(2, player.world.robot.no_of_joints), opponent_actions_split[i], harmonize=False)
                 player.scom.commit_and_send(player.world.robot.get_command())
-        else: # If no model, opponents do nothing
-            for player in self.opponent_team:
-                player.scom.commit_and_send(b'')
+        else:
+            for player in self.opponent_team: player.scom.commit_and_send(b'')
 
-
-        # 3. Receive world state updates for all 22 agents
         for player in self.learning_team: player.scom.receive(update=True)
         for player in self.opponent_team: player.scom.receive(update=True)
 
-        # 4. Calculate reward and check for terminal condition
         self.step_counter += 1
         obs = self._get_observation()
         reward = self._calculate_aggressive_reward()
@@ -89,17 +80,14 @@ class SelfPlay11v11Env(gym.Env):
         self.last_ball_x = 0
         self.last_goals_scored = self.learning_team[0].world.goals_scored
         self.last_goals_conceded = self.learning_team[0].world.goals_conceded
-
-        # Reset player and opponent positions using the game's beam logic
+        
         for player in self.learning_team: player.beam()
         for player in self.opponent_team: player.beam()
-
-        # Reset the ball to the center
+        
         self.learning_team[0].scom.unofficial_move_ball((0, 0, 0.042))
         return self._get_observation()
 
     def _get_observation(self):
-        """Concatenates observations from all learning agents."""
         all_obs = []
         for player in self.learning_team:
             obs = np.zeros(50, dtype=np.float32)
@@ -110,7 +98,6 @@ class SelfPlay11v11Env(gym.Env):
         return np.concatenate(all_obs)
 
     def _get_opponent_observation(self):
-        """Concatenates observations from all opponent agents."""
         all_obs = []
         for player in self.opponent_team:
             obs = np.zeros(50, dtype=np.float32)
@@ -125,15 +112,11 @@ class SelfPlay11v11Env(gym.Env):
         ball_pos = w.ball_abs_pos
         reward = 0
 
-        # Reward for moving the ball towards the opponent's goal
         ball_progress = ball_pos[0] - self.last_ball_x
         reward += ball_progress * 10
         self.last_ball_x = ball_pos[0]
         
-        # Reward for entering the opponent's penalty area
         if ball_pos[0] > 13.2: reward += 0.5
-
-        # Large reward/penalty for goals
         if w.goals_scored > self.last_goals_scored: reward += 10
         if w.goals_conceded > self.last_goals_conceded: reward -= 10
         
@@ -172,7 +155,6 @@ class SelfPlayTrainer(Train_Base):
 
         env = SubprocVecEnv([init_env(i) for i in range(n_envs)])
         
-        # Load the latest model or create a new one
         latest_model = self.get_latest_model(model_dir)
         if latest_model:
             print(f"Loading latest model: {latest_model}")
@@ -189,7 +171,6 @@ class SelfPlayTrainer(Train_Base):
                 current_model_path = f"{model_dir}/model_gen_{gen + 1}.zip"
                 model.save(current_model_path)
                 
-                # Update the opponent model in the environment
                 env.env_method("load_opponent_model", model_path=current_model_path)
 
         except (KeyboardInterrupt, Exception) as e:
@@ -202,10 +183,8 @@ class SelfPlayTrainer(Train_Base):
             print("Training complete.")
 
     def get_latest_model(self, model_dir):
-        """Finds the most recent model in a directory."""
         files = [os.path.join(model_dir, f) for f in os.listdir(model_dir) if f.startswith("model_gen_") and f.endswith(".zip")]
-        if not files:
-            return None
+        if not files: return None
         return max(files, key=os.path.getmtime)
 
 if __name__ == "__main__":

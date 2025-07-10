@@ -205,7 +205,7 @@ class Train(Train_Base):
         n_envs = min(16, os.cpu_count())
         n_steps_per_env = 1024  # RolloutBuffer is of size (n_steps_per_env * n_envs)
         minibatch_size = 64    # should be a factor of (n_steps_per_env * n_envs)
-        total_steps = 30000000
+        total_steps = 300000000
         learning_rate = 3e-4
         folder_name = f'Basic_Run_R{self.robot_type}'
         model_path = f'./scripts/gyms/logs/{folder_name}/'
